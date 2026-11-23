@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vertical Shmup · DQN Autopilot</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <main class="layout">
+    <section class="stage">
+      <canvas id="game" width="480" height="720" tabindex="0" aria-label="Game"></canvas>
+    </section>
+
+    <aside class="panel">
+      <h1>Vertical Shmup</h1>
+      <p class="sub">Bullet-hell shooter flown by a Deep Q-Network</p>
+
+      <div class="buttons">
+        <button id="btn-play">Play yourself</button>
+        <button id="btn-autopilot">Autopilot: OFF</button>
+        <button id="btn-view">Agent view</button>
+        <button id="btn-mute">Sound: ON</button>
+      </div>
+      <div class="speed">
+        Speed
+        <button data-speed="1">1×</button>
+        <button data-speed="2">2×</button>
+        <button data-speed="4">4×</button>
+      </div>
+
+      <h2>Run</h2>
+      <dl class="stats">
+        <dt>Score</dt><dd id="stat-score">0</dd>
+        <dt>Stage</dt><dd id="stat-stage">1</dd>
+        <dt>Best</dt><dd id="stat-best">0</dd>
+        <dt>Autopilot runs</dt><dd id="stat-runs">0</dd>
+        <dt>Autopilot avg</dt><dd id="stat-avg">-</dd>
+      </dl>
+
+      <h2>Model</h2>
+      <p id="model-info" class="model"></p>
+
+      <h2>Q-values <small>(autopilot)</small></h2>
+      <div id="q-bars" class="q-bars"></div>
+
+      <h2>Controls</h2>
+      <p class="controls">
+        Arrows / WASD move · Shift slow · X bomb<br>
+        Tab autopilot · V agent view · P pause · M mute
+      </p>
+    </aside>
+  </main>
+
+  <script src="js/rules.js"></script>
+  <script src="js/rng.js"></script>
+  <script src="js/core.js"></script>
+  <script src="js/features.js"></script>
+  <script src="model/dqn_model.js" onerror="console.info('No exported model yet.')"></script>
+  <script src="js/policy.js"></script>
+  <script src="js/renderer.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

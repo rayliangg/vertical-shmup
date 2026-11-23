@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+.venv/
+
+# Training output (export to web/model/ to publish a model)
+models/*
+!models/.gitkeep
+
+# Local state
+.highscore
+.DS_Store
+.idea/
+.vscode/
+.claude/
