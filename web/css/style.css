@@ -3,90 +3,162 @@
   src: url("../../assets/fonts/kenvector_future.ttf") format("truetype");
 }
 
-:root {
-  --bg: #0d0b1e;
-  --panel: #17142e;
-  --line: #2c2752;
-  --text: #e6e4ff;
-  --muted: #9a96c8;
-  --accent: #50ff78;
-  --warn: #ffd23c;
-}
-
 * { box-sizing: border-box; }
 
 body {
   margin: 0;
   min-height: 100vh;
-  background: radial-gradient(circle at 30% 20%, #221d4a 0%, var(--bg) 60%);
-  color: var(--text);
-  font: 14px/1.45 "Trebuchet MS", system-ui, sans-serif;
+  background: #000 url("../../assets/images/backgrounds/dark_purple.png") repeat;
+  color: #ddd;
+  font: 14px/1.5 "KenVector", "PingFang TC", "Microsoft JhengHei", sans-serif;
 }
 
-.layout {
+/* ---- 機台外框 ---- */
+.cabinet {
+  width: 860px;
+  max-width: 100%;
+  margin: 20px auto;
+  background: #1b1b1b;
+  border: 4px solid #000;
+  box-shadow: 0 0 0 4px #444;
+}
+
+.marquee {
+  background: #000;
+  border-bottom: 4px solid #444;
+  text-align: center;
+  padding: 14px 10px 10px;
+}
+.marquee h1 {
+  margin: 0;
+  font: 34px "KenVector", sans-serif;
+  color: #ffd23c;
+  text-shadow: 3px 3px 0 #c0392b;
+  letter-spacing: 2px;
+}
+.marquee p { margin: 4px 0 0; color: #8fd3ff; font-size: 12px; }
+
+.cabinet-body {
   display: flex;
   flex-wrap: wrap;
-  gap: 24px;
+  gap: 16px;
+  padding: 16px;
   justify-content: center;
-  align-items: flex-start;
-  padding: 24px 16px;
 }
 
-.stage canvas {
+.bezel {
+  background: #000;
+  border: 8px solid #333;
+  border-top-color: #222;
+  border-left-color: #222;
+  line-height: 0;
+}
+.bezel canvas {
   display: block;
   width: 480px;
-  max-width: calc(100vw - 32px);
+  max-width: calc(100vw - 80px);
   height: auto;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
   outline: none;
-  image-rendering: auto;
 }
 
-.panel {
-  width: 300px;
-  max-width: 100%;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 16px 18px;
+/* ---- 右邊操作台 ---- */
+.console { width: 270px; max-width: 100%; }
+
+.score-box {
+  background: #000;
+  border: 2px solid #444;
+  padding: 8px 10px;
+  margin-bottom: 12px;
+}
+.score-box div { display: flex; justify-content: space-between; }
+.score-box .lbl { color: #ff5a5a; }
+.score-box .num { color: #fff; font-variant-numeric: tabular-nums; }
+
+.btn-row { display: flex; gap: 6px; margin-bottom: 8px; }
+.btn-row.small { flex-wrap: wrap; margin-bottom: 12px; }
+
+button { font: inherit; cursor: pointer; }
+
+/* Kenney 的按鈕圖（Space Shooter Redux, 2014） */
+.arcade {
+  flex: 1;
+  height: 39px;
+  border: 0;
+  color: #222;
+  font-size: 13px;
+  background: transparent center / 100% 100% no-repeat;
+}
+.arcade.green  { background-image: url("../../assets/images/ui/button_green.png"); }
+.arcade.blue   { background-image: url("../../assets/images/ui/button_blue.png"); }
+.arcade.yellow { background-image: url("../../assets/images/ui/button_yellow.png"); }
+.arcade:active { transform: translateY(2px); }
+.arcade.on     { outline: 3px solid #3ddc55; color: #0a6b1c; }
+.arcade:disabled { filter: grayscale(1); opacity: .5; cursor: not-allowed; }
+
+.chip {
+  background: #2a2a2a;
+  color: #bbb;
+  border: 2px solid #555;
+  padding: 3px 8px;
+  font-size: 12px;
+}
+.chip.on { background: #ffd23c; color: #000; border-color: #ffd23c; }
+
+/* ---- AI 搖桿 ---- */
+.ai-box {
+  border: 2px dashed #555;
+  padding: 10px;
+  margin-bottom: 12px;
+}
+.ai-title { color: #8fd3ff; margin-bottom: 8px; font-size: 13px; }
+.joy { display: flex; gap: 14px; align-items: center; }
+.joy-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 26px);
+  grid-template-rows: repeat(3, 26px);
+  gap: 3px;
+}
+.joy-grid span {
+  background: #2a2a2a;
+  border: 2px solid #444;
+  color: #666;
+  font-size: 14px;
+  line-height: 22px;
+  text-align: center;
+}
+.joy-grid span.lit { background: #3ddc55; border-color: #b6ffbf; color: #000; }
+.lamp {
+  border: 2px solid #444;
+  padding: 2px 8px;
+  color: #555;
+  font-size: 12px;
+  text-align: center;
+}
+.lamp.lit { background: #ff9628; border-color: #ffd08a; color: #000; }
+.joy-q { margin-top: 6px; color: #999; font-size: 12px; text-align: center; }
+.ai-note { margin: 8px 0 0; color: #999; font-size: 12px; }
+.ai-note b { color: #fff; font-weight: normal; }
+.ai-note code { color: #ffd23c; }
+
+.howto { color: #999; font-size: 12px; }
+.howto div { margin-bottom: 4px; }
+kbd {
+  display: inline-block;
+  min-width: 20px;
+  padding: 0 4px;
+  margin-right: 2px;
+  background: #eee;
+  color: #000;
+  border-bottom: 3px solid #999;
+  font: 11px/18px "KenVector", sans-serif;
+  text-align: center;
 }
 
-h1 { font: 22px "KenVector", sans-serif; margin: 0; color: var(--warn); }
-h2 { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted);
-     margin: 18px 0 6px; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
-h2 small { text-transform: none; letter-spacing: 0; }
-.sub { margin: 4px 0 14px; color: var(--muted); }
-
-button {
-  background: #241f47;
-  color: var(--text);
-  border: 1px solid #3b3570;
-  border-radius: 5px;
-  padding: 7px 10px;
-  font: inherit;
-  cursor: pointer;
+footer {
+  border-top: 4px solid #444;
+  background: #000;
+  color: #777;
+  font-size: 11px;
+  text-align: center;
+  padding: 6px;
 }
-button:hover:not(:disabled) { border-color: var(--accent); }
-button.on { background: #1d4a2c; border-color: var(--accent); color: #c8ffd6; }
-button:disabled { opacity: .45; cursor: not-allowed; }
-
-.buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.speed { margin-top: 8px; display: flex; gap: 6px; align-items: center; color: var(--muted); }
-.speed button { padding: 4px 10px; }
-
-.stats { display: grid; grid-template-columns: 1fr auto; margin: 0; row-gap: 2px; }
-.stats dt { color: var(--muted); }
-.stats dd { margin: 0; font-variant-numeric: tabular-nums; text-align: right; }
-
-.model { margin: 0; color: var(--muted); font-size: 13px; }
-.model code { color: var(--text); }
-
-.q-bars { display: grid; grid-template-columns: 1fr 1fr; column-gap: 10px; row-gap: 2px; }
-.q-row { display: flex; align-items: center; gap: 6px; font-size: 11px; }
-.q-label { width: 44px; color: var(--muted); white-space: nowrap; }
-.q-bar { height: 7px; width: 8%; background: #3b3570; border-radius: 2px; transition: width .1s; }
-.q-bar.best { background: var(--accent); }
-
-.controls { margin: 0; color: var(--muted); font-size: 12px; }

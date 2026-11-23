@@ -31,13 +31,17 @@
   function setAutopilot(on) {
     state.autopilot = !!(on && policy);
     $("btn-autopilot").classList.toggle("on", state.autopilot);
-    $("btn-autopilot").textContent = state.autopilot ? "自動駕駛：開" : "自動駕駛：關";
+    $("btn-autopilot").textContent = state.autopilot ? "AI 開車中" : "AI 開車";
   }
   function setSpeed(v) {
     state.speed = v;
     Array.prototype.forEach.call(document.querySelectorAll("[data-speed]"), function (b) {
       b.classList.toggle("on", Number(b.getAttribute("data-speed")) === v);
     });
+  }
+  function setMuted(muted) {
+    $("btn-mute").textContent = muted ? "靜音中" : "音效";
+    $("btn-mute").classList.toggle("on", muted);
   }
   function setAgentView(on) {
     renderer.showAgentView = on;
@@ -47,14 +51,11 @@
   function initPanel() {
     if (policy) {
       var m = policy.meta || {}, ev = m.eval || {};
-      $("model-info").innerHTML =
-        "Dueling Double DQN &middot; 隱藏層 " + S.MODEL.hidden + " 單元<br>" +
-        (m.step ? "訓練了 " + Number(m.step).toLocaleString() + " 步<br>" : "") +
-        (ev.survival ? "評估：平均存活 " + Math.round(ev.survival / 30) + " 秒，平均第 " +
-         Number(ev.stage).toFixed(1) + " 關" : "");
+      $("model-info").innerHTML = "模型練了 " +
+        (m.step != null ? Number(m.step).toLocaleString() + " 步" : "?? 步") +
+        (ev.survival ? "，測試時平均撐 " + Math.round(ev.survival / 30) + " 秒" : "");
     } else {
-      $("model-info").innerHTML = "還沒有模型。<br>請先訓練，再執行<br>" +
-        "<code>python scripts/export_web.py</code>";
+      $("model-info").innerHTML = "還沒有模型，先訓練再跑<br><code>scripts/export_web.py</code>";
       $("btn-autopilot").disabled = true;
     }
     $("btn-play").onclick = function () { setAutopilot(false); newGame(); canvas.focus(); };
@@ -65,7 +66,7 @@
     };
     $("btn-view").onclick = function () { setAgentView(!renderer.showAgentView); canvas.focus(); };
     $("btn-mute").onclick = function () {
-      $("btn-mute").textContent = audio.toggle() ? "音效：開" : "音效：關";
+      setMuted(!audio.toggle());
       canvas.focus();
     };
     $("btn-boss").onclick = function () { jumpToBoss(0); canvas.focus(); };
@@ -73,20 +74,14 @@
     Array.prototype.forEach.call(document.querySelectorAll("[data-speed]"), function (b) {
       b.onclick = function () { setSpeed(Number(b.getAttribute("data-speed"))); canvas.focus(); };
     });
-    var bars = $("q-bars");
-    F.ACTIONS.forEach(function (a, i) {
-      var row = document.createElement("div");
-      row.className = "q-row";
-      row.innerHTML = '<span class="q-label">' + actionLabel(a) + '</span><span class="q-bar" id="q' +
-        i + '"></span>';
-      bars.appendChild(row);
-    });
-  }
-
-  function actionLabel(a) {
-    var arrows = { "0,0": "·", "-1,0": "←", "1,0": "→", "0,-1": "↑", "0,1": "↓",
-                   "-1,-1": "↖", "1,-1": "↗", "-1,1": "↙", "1,1": "↘" };
-    return arrows[a[0] + "," + a[1]] + (a[2] ? " 慢" : "");
+    // 3x3 的搖桿格子，亮起來的那格就是 AI 選的方向
+    var arrows = ["↖", "↑", "↗", "←", "●", "→", "↙", "↓", "↘"], joy = $("joy");
+    for (var i = 0; i < 9; i++) {
+      var cell = document.createElement("span");
+      cell.id = "joy" + i;
+      cell.textContent = arrows[i];
+      joy.appendChild(cell);
+    }
   }
 
   function updatePanel() {
@@ -97,16 +92,12 @@
     $("stat-runs").textContent = runs.length;
     $("stat-avg").textContent = runs.length
       ? Math.round(runs.reduce(function (s, r) { return s + r; }, 0) / runs.length) : "-";
-    var o = state.overlay;
-    if (o && o.q) {
-      var lo = Infinity, hi = -Infinity, i;
-      for (i = 0; i < o.q.length; i++) { lo = Math.min(lo, o.q[i]); hi = Math.max(hi, o.q[i]); }
-      for (i = 0; i < o.q.length; i++) {
-        var bar = $("q" + i);
-        bar.style.width = (8 + 92 * (o.q[i] - lo) / Math.max(hi - lo, 1e-6)) + "%";
-        bar.classList.toggle("best", i === o.action);
-      }
-    }
+    var o = state.overlay, on = state.autopilot && o && o.q;
+    var a = on ? F.ACTIONS[o.action] : null;
+    var lit = a ? (a[1] + 1) * 3 + (a[0] + 1) : -1;
+    for (var i = 0; i < 9; i++) $("joy" + i).classList.toggle("lit", i === lit);
+    $("joy-slow").classList.toggle("lit", !!(a && a[2]));
+    $("joy-q").textContent = on ? "Q " + o.q[o.action].toFixed(2) : "--";
   }
 
   // ------------------------------------------------------------- 遊戲流程
@@ -205,7 +196,7 @@
     } else if (e.code === "KeyV") {
       setAgentView(!renderer.showAgentView);
     } else if (e.code === "KeyM") {
-      $("btn-mute").textContent = audio.toggle() ? "音效：開" : "音效：關";
+      setMuted(!audio.toggle());
     } else if (state.scene === "title" && (e.code === "Enter" || e.code === "Space")) {
       setAutopilot(false); newGame();
     } else if (state.scene === "title" && e.code === "KeyA" && policy) {

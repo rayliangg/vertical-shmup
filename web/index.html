@@ -3,56 +3,70 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Vertical Shmup · DQN 自動駕駛</title>
+  <title>Vertical Shmup</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <main class="layout">
-    <section class="stage">
-      <canvas id="game" width="480" height="720" tabindex="0" aria-label="遊戲畫面"></canvas>
-    </section>
+  <div class="cabinet">
+    <header class="marquee">
+      <h1>VERTICAL SHMUP</h1>
+      <p>INSERT COIN &mdash; 或交給 AI 來玩</p>
+    </header>
 
-    <aside class="panel">
-      <h1>Vertical Shmup</h1>
-      <p class="sub">由 Deep Q-Network 自動駕駛的彈幕射擊遊戲</p>
-
-      <div class="buttons">
-        <button id="btn-play">自己玩</button>
-        <button id="btn-autopilot">自動駕駛：關</button>
-        <button id="btn-view">Agent 視角</button>
-        <button id="btn-mute">音效：開</button>
-        <button id="btn-boss">直接打魔王</button>
-        <button id="btn-stage">下一關魔王</button>
-      </div>
-      <div class="speed">
-        速度
-        <button data-speed="1">1×</button>
-        <button data-speed="2">2×</button>
-        <button data-speed="4">4×</button>
+    <div class="cabinet-body">
+      <div class="bezel">
+        <canvas id="game" width="480" height="720" tabindex="0" aria-label="遊戲畫面"></canvas>
       </div>
 
-      <h2>本局</h2>
-      <dl class="stats">
-        <dt>分數</dt><dd id="stat-score">0</dd>
-        <dt>關卡</dt><dd id="stat-stage">1</dd>
-        <dt>最高分</dt><dd id="stat-best">0</dd>
-        <dt>自動駕駛局數</dt><dd id="stat-runs">0</dd>
-        <dt>自動駕駛平均分</dt><dd id="stat-avg">-</dd>
-      </dl>
+      <aside class="console">
+        <div class="score-box">
+          <div><span class="lbl">1P</span><span id="stat-score" class="num">0</span></div>
+          <div><span class="lbl">HI</span><span id="stat-best" class="num">0</span></div>
+          <div><span class="lbl">STAGE</span><span id="stat-stage" class="num">1</span></div>
+        </div>
 
-      <h2>模型</h2>
-      <p id="model-info" class="model"></p>
+        <div class="btn-row">
+          <button id="btn-play" class="arcade green">自己玩</button>
+          <button id="btn-autopilot" class="arcade blue">AI 開車</button>
+        </div>
+        <div class="btn-row">
+          <button id="btn-boss" class="arcade yellow">直接打魔王</button>
+          <button id="btn-stage" class="arcade yellow">下一關魔王</button>
+        </div>
+        <div class="btn-row small">
+          <button data-speed="1" class="chip">x1</button>
+          <button data-speed="2" class="chip">x2</button>
+          <button data-speed="4" class="chip">x4</button>
+          <button id="btn-view" class="chip">危險格</button>
+          <button id="btn-mute" class="chip">音效</button>
+        </div>
 
-      <h2>Q 值 <small>（自動駕駛時）</small></h2>
-      <div id="q-bars" class="q-bars"></div>
+        <div class="ai-box">
+          <div class="ai-title">AI 現在想往哪走</div>
+          <div class="joy">
+            <div class="joy-grid" id="joy"></div>
+            <div class="joy-side">
+              <div class="lamp" id="joy-slow">SLOW</div>
+              <div class="joy-q" id="joy-q">--</div>
+            </div>
+          </div>
+          <p class="ai-note" id="model-info"></p>
+          <p class="ai-note">AI 跑了 <b id="stat-runs">0</b> 局，平均 <b id="stat-avg">-</b> 分</p>
+        </div>
 
-      <h2>操作</h2>
-      <p class="controls">
-        方向鍵 / WASD 移動 · Shift 慢速 · X 炸彈<br>
-        Tab 自動駕駛 · V agent 視角 · P 暫停 · M 靜音
-      </p>
-    </aside>
-  </main>
+        <div class="howto">
+          <div><kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd> 移動</div>
+          <div><kbd>Shift</kbd> 慢速　<kbd>X</kbd> 炸彈</div>
+          <div><kbd>Tab</kbd> AI 開車　<kbd>V</kbd> 危險格</div>
+          <div><kbd>P</kbd> 暫停　<kbd>M</kbd> 靜音</div>
+        </div>
+      </aside>
+    </div>
+
+    <footer>
+      素材：Kenney（CC0）／音樂：Matthew Pablo &ldquo;Orbital Colossus&rdquo;（CC-BY 3.0）
+    </footer>
+  </div>
 
   <script src="js/rules.js"></script>
   <script src="js/rng.js"></script>
