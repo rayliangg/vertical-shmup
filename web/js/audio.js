@@ -1,4 +1,4 @@
-// Sound effects + music with <audio> elements (browsers need a click/key first).
+// 用 <audio> 播音效和音樂（瀏覽器規定要先點一下或按鍵才能出聲）。
 (function (S) {
   "use strict";
   var ROOT = "../assets/sounds/";

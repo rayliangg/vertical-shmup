@@ -1,199 +1,337 @@
 # Vertical Shmup
 
-縱向彈幕射擊遊戲（bullet-hell shmup），附帶一個用 **Deep Q-Network** 訓練的自動駕駛 agent，
-會自己閃避敵人和子彈、吃道具。有 **pygame 版**和**網頁版**（給 demo 用，免安裝）。
+縱向彈幕射擊遊戲，附帶一個用 **DQN（Deep Q-Network）** 訓練的自動駕駛 agent，
+會自己閃避敵人和子彈、撿道具、打魔王。有 **pygame 版**，也有免安裝的**網頁版**可以直接拿來 demo。
 
-> 所有素材、演算法、函式庫都是 **2019 年以前**就有的，見下方「2019 年前規範」。
+> 所有素材、演算法、函式庫都是 **2019 年以前**就已經存在的，檢查結果在下方「2019 年以前檢查」。
 
-![gameplay](docs/screenshots.png)
+![遊戲畫面](docs/screenshots.png)
+
+---
+
+## 目錄
+
+1. [快速開始](#快速開始)
+2. [遊戲設計](#遊戲設計)
+3. [從訓練到結果的流程](#從訓練到結果的流程)
+4. [自動駕駛（DQN）](#自動駕駛dqn)
+5. [訓練](#訓練)
+6. [訓練時間估計](#訓練時間估計)
+7. [網頁版（demo 用）](#網頁版demo-用)
+8. [專案結構](#專案結構)
+9. [測試](#測試)
+10. [2019 年以前檢查](#2019-年以前檢查)
+
+---
 
 ## 快速開始
 
 ```bash
 pip install -e ".[game]"       # 玩遊戲：numpy + pygame
-pip install -e ".[game,rl]"    # 再加 PyTorch：自動駕駛 / 訓練
+pip install -e ".[game,rl]"    # 再加上 PyTorch：自動駕駛 / 訓練
 ```
-
-訓練完全不需要畫面：`core/` 和 `agent/` 不會 import pygame，Colab 上連 pip install 都不用。
 
 ```bash
 python -m shmup                 # 自己玩
-python -m shmup --autopilot     # 看 DQN 自己玩（需要先訓練）
+python -m shmup --autopilot     # 看 DQN 自己玩（要先訓練好模型）
 ```
+
+**訓練完全不需要畫面**：`core/`（遊戲規則）和 `agent/`（強化學習）都不會 import pygame，
+只有自己玩或 demo 的時候才會開視窗。
 
 | 按鍵 | 功能 |
 |------|------|
 | 方向鍵 / WASD | 移動 |
-| Shift | 慢速精準移動（focus，會顯示判定點） |
+| Shift | 慢速精準移動（會顯示判定點） |
 | X | 炸彈 |
-| Tab | 自動駕駛開 / 關 |
+| Tab | 自動駕駛 開 / 關 |
 | V | Agent 視角（顯示網路看到的危險格） |
 | P / M / Esc | 暫停 / 靜音 / 離開 |
 
+---
+
 ## 遊戲設計
 
-參考經典彈幕射擊（東方、怒首領蜂這一類遊戲）的**玩法類型**，全部重新實作：
+參考彈幕射擊遊戲這個類型的經典玩法，全部自己重新實作。
 
-- **敵人會開火**：自機狙（瞄準你）、扇形彈、環形彈、旋轉螺旋彈、雷射
-- **敵人種類**：Scout（直線 + 自機狙）、Weaver（蛇行 + 三向扇形）、Diver（停頓後鎖定衝撞）、
-  Gunship（停留發射環形彈 + 雷射）、隕石（打碎會分裂）、**Boss**（3 個階段，每階段彈幕不同）
-- **道具**：火力升級（最多 4 級）、回血、護盾（擋一次）、炸彈、加分星星
-- **彈幕類經典機制**：
-  - 極小判定點（5 px），擦彈（graze）加分
-  - 炸彈清除全畫面子彈；被打中時若還有炸彈會**自動放炸彈**抵銷
-  - 被打後有無敵時間、火力降一級
-  - 飛到畫面上方「收點線」時，所有道具自動吸過來
-- **魔王關卡**：每關的節奏是
+**敵人會開火**：瞄準玩家的「自機狙」、扇形彈、環形彈、旋轉螺旋彈、雷射。
 
-  ```
-  雜魚波次 → 中魔王 SENTINEL（25 秒）→ 雜魚波次 → WARNING → 關卡魔王（3 階段）→ 下一關
-  ```
+| 敵人 | 行為 |
+|------|------|
+| Scout | 直直往下飛，發射自機狙 |
+| Weaver | 蛇行，發射三向扇形彈 |
+| Diver | 停住瞄準一下，然後衝撞玩家 |
+| Gunship | 停在畫面上方發射環形彈和雷射，一段時間後離開 |
+| 隕石 | 大的打碎會分裂成兩個中的，中的再分裂成小的 |
 
-  | 關卡 | 魔王 | 階段 1 | 階段 2 | 階段 3 |
-  |------|------|--------|--------|--------|
-  | 1, 4, 7… | WARDEN | Aimed Fans | Twin Spiral | Last Stand |
-  | 2, 5, 8… | HIVE CARRIER | Drone Bay（放出無人機） | Bloom（反轉花形彈） | Laser Rain |
-  | 3, 6, 9… | TWIN FANG | Crossfire | Pinwheel | Fang Rush（追著玩家） |
+**道具**：火力升級（最多 4 級）、回血、護盾（擋一次攻擊）、炸彈、加分星星。
 
-  HP 到 66% / 33% 換階段並清空子彈；每階段 30 秒時限，時限內打破有加分，
-  最後階段時間到魔王會逃走。每輪一次魔王，HP 與彈幕速度都會提升。
+**彈幕遊戲的經典機制**：
 
-  ![bosses](docs/bosses.png)
+- 判定點只有 5 px，子彈從身邊擦過（擦彈）會加分
+- 炸彈會清掉全畫面子彈；被打中時如果還有炸彈，會**自動放炸彈**抵銷
+- 被打之後有一段無敵時間，火力會降一級
+- 飛到畫面上方的「收點線」，所有道具會自動吸過來
+
+### 魔王關卡
+
+每一關的流程：
+
+```
+雜魚波次 → 中魔王 SENTINEL（約 25 秒）→ 雜魚波次 → WARNING → 關卡魔王（3 個階段）→ 下一關
+```
+
+| 關卡 | 魔王 | 第 1 階段 | 第 2 階段 | 第 3 階段 |
+|------|------|-----------|-----------|-----------|
+| 1、4、7… | WARDEN | Aimed Fans：五向自機狙 + 慢速大彈環 | Twin Spiral：雙螺旋 + 雷射 | Last Stand：密集環形彈 + 高速自機狙 |
+| 2、5、8… | HIVE CARRIER | Drone Bay：放出無人機 + 環形彈 | Bloom：五瓣花形彈，每 2 秒反轉方向 | Laser Rain：雷射從上方隨機落下 |
+| 3、6、9… | TWIN FANG | Crossfire：雙砲口交叉雷射 | Pinwheel：兩組反向旋轉的風車彈 | Fang Rush：魔王追著玩家移動 |
+
+- HP 剩 66%、33% 時換階段，畫面上的子彈會被清掉，並顯示階段名稱
+- 每個階段有 30 秒時限：時間內打破有 +1000 分；時間到直接換下一階段；最後階段時間到魔王會逃走
+- 每輪一次魔王，HP 和子彈速度都會變高
+
+![魔王](docs/bosses.png)
+
+---
+
+## 從訓練到結果的流程
+
+```
+[1] 遊戲規則  src/shmup/core/
+     │   純 Python 模擬，不用畫面，同一個 seed 一定跑出同一局
+     │   每秒約 5,000–11,000 次決策（本機實測）
+     ▼
+[2] 環境 + 觀測  src/shmup/agent/env.py、features.py
+     │   每 2 個 frame 做一次決策（每秒 30 次）
+     │   觀測：284 個數字（自機、最近 24 顆子彈、最近 8 個敵人、9x9 危險格、道具、魔王）
+     │   動作：18 種（9 個方向 x 一般 / 慢速）
+     │   獎勵：活著 +0.01、掉血 -1、吃道具 +0.05 …
+     ▼
+[3] 訓練  scripts/train_cpu.py（本機）或 scripts/train_gpu.py（Colab）
+     │   ┌─▶ 同時玩 8 局（CPU）/ 64 局（GPU）
+     │   │     ▼
+     │   │   ε-greedy 選動作（ε 從 1.0 慢慢降到 0.02）
+     │   │     ▼
+     │   │   整理成 3-step transition，存進 replay buffer（30 萬 / 100 萬筆）
+     │   │     ▼
+     │   │   隨機抽一個 batch，算 Double DQN 目標、Huber loss
+     │   │     ▼
+     │   │   更新 Dueling 網路；每 2,000 次更新同步一次 target 網路
+     │   └─────┘
+     ▼   每 15 萬步（GPU 版每 40 萬步）
+[4] 評估  用固定的 10 個 seed、ε = 0 各玩一局
+     │   ├─▶ 存活最久的模型      → models/dqn.pt
+     │   └─▶ 最新模型 + optimizer → models/dqn_last.pt（斷線時用 --resume 接著訓練）
+     ▼
+[5] 匯出  scripts/export_web.py
+     │   models/dqn.pt → web/model/dqn_model.js（權重轉成 base64）
+     ▼
+[6] 看結果（這一步才需要畫面）
+     ├─▶ pygame 版：python -m shmup --autopilot
+     └─▶ 網頁版：  web/index.html（純 JavaScript 推論，可以開 Agent 視角、直接打魔王）
+```
+
+---
+
+## 自動駕駛（DQN）
+
+只使用 2019 年以前發表的方法：
+
+| 方法 | 出處 | 用途 |
+|------|------|------|
+| DQN、經驗回放（experience replay）、目標網路（target network） | Mnih et al., Nature 2015 | 讓神經網路版的 Q-learning 穩定 |
+| Double DQN | van Hasselt et al., AAAI 2016 | 修正 Q 值高估 |
+| Dueling Network | Wang et al., ICML 2016 | 分開學「局面好壞」和「動作差異」 |
+| n-step return（n = 3） | Sutton 1988；Rainbow 2017 | 讓獎勵往回傳得更快 |
+| Adam、Huber loss、ε-greedy、梯度裁剪 | 2014 年以前 | 優化與穩定 |
+
+- **觀測（284 維）**：不是看畫面像素，而是整理好的數字，所以小的 MLP 就學得動，瀏覽器也跑得動。
+- **動作（18 種）**：9 個方向 x {一般速度, 慢速}。射擊一直是自動的，agent 只負責移動。
+- **獎勵**：每步存活 +0.01、掉 1 滴血 -1、被迫自動放炸彈 -0.5、護盾破掉 -0.3、
+  撿道具 +0.05、分數 x 0.0002、死亡 -1。
+- **網路**：284 → 256 → 256 → Dueling 輸出頭（V 和 A），CPU 版約 20.7 萬個參數，GPU 版（512）約 67.6 萬個。
+
+詳細的原理和設計理由寫在 `README2.md`（個人筆記，沒有放進 git）。
+
+---
+
+## 訓練
+
+```bash
+python scripts/train_cpu.py                       # CPU：同時 8 局、256 單元、300 萬步
+python scripts/train_cpu.py --total-steps 500000  # 快速試跑
+python scripts/train_gpu.py                       # GPU（CUDA）：同時 64 局、512 單元、800 萬步
+python scripts/train_cpu.py --resume models/dqn_last.pt   # 接著上次訓練
+python scripts/train_cpu.py --eval-only           # 評估 models/dqn.pt
+python scripts/train_cpu.py --help                # 所有超參數都能用參數調整
+```
+
+- 存活最久的模型存到 `models/dqn.pt`，最新的（含 optimizer）存到 `models/dqn_last.pt`，按 Ctrl+C 中斷也會存。
+- GPU 版只用 PyTorch 1.0 時代就有的 CUDA 功能。**Mac 沒有 CUDA，請用 CPU 版或 Colab。**
+
+### 在 Google Colab 上訓練
+
+1. 在本機打包程式碼，把 zip 上傳到 Google Drive 根目錄：
+
+   ```bash
+   git archive --format=zip --prefix=vertical-shmup/ -o ~/Desktop/vertical-shmup.zip HEAD
+   ```
+
+2. 到 Colab 上傳 `notebooks/train_on_colab.ipynb`，**執行階段 → 變更執行階段類型 → T4 GPU**，依序執行每個 cell。
+   Colab 已經內建 numpy 和 PyTorch，不需要另外安裝。
+3. 存檔和 log 會寫到 `MyDrive/shmup/`，斷線後用 `--resume` 接著訓練。
+4. 下載 `dqn.pt` 放到 `models/`，`dqn_model.js` 放到 `web/model/`，回到本機 demo。
+
+---
+
+## 訓練時間估計
+
+「訓練 N 回合」指 N 個 episode（一局遊戲，從開始到死亡或滿 5 分鐘）。
+一開始 agent 幾乎是亂動，一局大約 1,000 步；學會閃避之後一局會越來越長，最長 9,000 步。
+
+| 訓練回合數 | 約等於幾步決策 | 這時候的 agent | CPU 版（本機 Mac 8 核，實測推算） | GPU 版（Colab T4，估計） |
+|-----------:|---------------|----------------|---------------------------------:|-------------------------:|
+| 10 | 約 1 萬步 | ε ≈ 1，還在收集資料，還沒開始學 | 約 2 秒 | 約 10 秒 ※ |
+| 50 | 約 5 萬步 | 剛開始學，ε ≈ 0.97，幾乎還是亂動 | 約 35 秒 | 約 15 秒 ※ |
+| 200 | 約 22 萬步 | 大部分還在探索，ε ≈ 0.8 | 約 4 分鐘 | 約 1.5–2 分鐘 |
+| 2000 | 約 400–800 萬步 | ε 已降到 0.02，開始會躲彈幕、打到魔王 | 約 1.3–2.5 小時 | 約 35–90 分鐘 |
+
+估計方式與假設：
+
+- **本機實測**（Apple Silicon Mac，8 核）：遊戲模擬每秒約 11,000 步（前期）到 4,900 步（彈幕多的魔王戰）；
+  CPU 版一次梯度更新（batch 128）約 3.3 ms，每 4 步做一次，所以**學習階段大約每秒 1,000 步**，
+  前 2 萬步只收集資料時大約每秒 8,000 步。
+- **Colab 是估計值**：Colab 免費版只有 2 個 CPU 核心，模擬比本機慢；T4 做梯度更新很快，
+  但瓶頸還是 Python 的遊戲模擬，大約每秒 1,500–2,500 步。實際速度請看 log 裡的 `steps/s`。
+- 時間有包含定期評估（每次評估玩 10 局，agent 越強評估越久）。
+- ※ GPU 版一開始就同時跑 64 局，每局約 1,000 步，所以要先跑大約 5 萬步，前 64 個回合才會幾乎同時結束。
+- 2000 回合的範圍很大，因為回合長度取決於 agent 學得多好；如果 agent 已經很強、每局都活滿 5 分鐘，
+  2000 回合最多可能到 1,800 萬步（CPU 約 5 小時以上，GPU 約 2–3 小時）。
+- 想要能躲過魔王彈幕的 agent，建議至少訓練 300 萬步（CPU 約 50–60 分鐘、Colab 約 20–35 分鐘）。
+
+---
+
+## 網頁版（demo 用）
+
+```bash
+python scripts/export_web.py        # 把 models/dqn.pt 轉成 web/model/dqn_model.js
+python -m http.server 8000          # 在專案根目錄開一個本機伺服器
+```
+
+打開 <http://localhost:8000/web/>（也可以直接用瀏覽器開 `web/index.html`，但字型和音效可能載入不完整）。
+
+右側面板可以：
+
+- 切換「自己玩」/「自動駕駛」
+- 開關「Agent 視角」，看網路眼中的危險格和它選的方向
+- 1x / 2x / 4x 速度
+- 「直接打魔王」/「下一關魔王」，demo 時不用等雜魚
+- 即時顯示 18 個動作的 Q 值，以及自動駕駛的平均分數
+
+網頁版的神經網路是用純 JavaScript 做矩陣乘法，不需要任何機器學習函式庫。
+Safari 不支援 `.ogg` 音效，建議用 Chrome 或 Firefox。
+
+---
 
 ## 專案結構
 
 ```
 vertical-shmup/
-├── pyproject.toml          套件設定與相依套件（取代 requirements.txt）
-├── README.md / CREDITS.md
-├── assets/                 所有素材（pygame 和網頁版共用）
-│   ├── images/{player,enemies,projectiles,items,effects,backgrounds,ui}/
-│   ├── sounds/{sfx,music}/
+├── setup.py / requirements.txt   安裝設定與相依套件
+├── README.md / CREDITS.md        說明文件、素材來源
+├── assets/                       所有素材（pygame 版和網頁版共用）
+│   ├── images/                   player、enemies、projectiles、items、effects、backgrounds、ui
+│   ├── sounds/                   sfx（音效）、music（背景音樂）
 │   ├── fonts/
-│   └── licenses/           素材原始授權檔
-├── src/shmup/              Python 套件（src layout）
-│   ├── __main__.py         `python -m shmup` 進入點
-│   ├── paths.py            所有路徑集中管理
-│   ├── core/               純遊戲邏輯，不 import pygame，可無畫面高速執行
-│   │   ├── rules.py        所有可調數值（唯一來源，會匯出給網頁版）
-│   │   ├── rng.py          可重現的亂數（xorshift32，JS 版逐位元相同）
-│   │   ├── entities.py     玩家、子彈、道具
-│   │   ├── enemies.py      敵人與 Boss 行為
-│   │   ├── patterns.py     彈幕發射樣式（自機狙 / 扇形 / 環形）
-│   │   ├── director.py     出怪波次與 Boss 排程
-│   │   └── world.py        World：一個 frame 的完整更新與碰撞
-│   ├── client/             pygame 前端（只負責畫面、輸入、音效）
-│   │   ├── app.py  renderer.py  effects.py  assets.py  audio.py
-│   └── agent/              強化學習
-│       ├── features.py     World → 284 維觀測向量；18 個動作
-│       ├── env.py          Gym 風格環境 + 多程序向量環境
-│       ├── dqn.py          網路、Replay Buffer、n-step、Double DQN loss
-│       ├── trainer.py      訓練迴圈、評估、checkpoint
-│       ├── policy.py       推論（給 pygame 自動駕駛用）
-│       └── export.py       匯出規則與權重給網頁版
-├── scripts/                可直接執行的指令
-│   ├── train_cpu.py        CPU 版訓練
-│   ├── train_gpu.py        GPU（CUDA）版訓練
-│   └── export_web.py       匯出模型到 web/
-├── web/                    網頁版（純 HTML5 Canvas + JavaScript，無任何框架）
-│   ├── index.html  css/style.css
-│   ├── js/                 rules.js(自動產生) rng core features policy renderer audio main
-│   └── model/              dqn_model.js（由 export_web.py 產生）
-├── notebooks/              train_on_colab.ipynb（Google Colab 訓練用）
-├── models/                 訓練出的 checkpoint（不進 git）
-├── tests/                  pytest 測試，包含 Python ↔ JavaScript 一致性測試
-└── docs/                   README 圖片
+│   └── licenses/                 素材的原始授權檔
+├── src/shmup/                    Python 套件
+│   ├── __main__.py               `python -m shmup` 的進入點
+│   ├── paths.py                  所有檔案路徑
+│   ├── core/                     遊戲規則（不用 pygame）
+│   │   ├── rules.py              所有可調整的數字（網頁版的 rules.js 由它產生）
+│   │   ├── rng.py                可重現的亂數（xorshift32）
+│   │   ├── entities.py           玩家、子彈、道具
+│   │   ├── enemies.py            敵人和魔王的行為
+│   │   ├── patterns.py           彈幕的發射方式
+│   │   ├── director.py           出怪和魔王的時間安排
+│   │   └── world.py              每個 frame 的更新和碰撞
+│   ├── client/                   pygame 畫面、輸入、音效
+│   └── agent/                    強化學習
+│       ├── features.py           遊戲 → 284 維觀測、18 種動作
+│       ├── env.py                環境 + 多程序向量環境
+│       ├── dqn.py                網路、replay buffer、n-step、Double DQN loss
+│       ├── trainer.py            訓練迴圈、評估、存檔、續訓
+│       ├── policy.py             pygame 版用的推論
+│       └── export.py             匯出規則和權重給網頁版
+├── scripts/                      train_cpu.py、train_gpu.py、export_web.py
+├── notebooks/                    train_on_colab.ipynb
+├── web/                          網頁版（HTML5 Canvas + 純 JavaScript）
+├── models/                       訓練出來的模型（不放進 git）
+├── tests/                        測試，包含 Python 和 JavaScript 的一致性測試
+└── docs/                         README 用的圖片
 ```
 
-### 這樣命名 / 分層的原因（專業寫法重點）
+這樣分的原因：
 
-- **src layout**：程式放在 `src/shmup/`，避免「在專案根目錄剛好 import 得到」的假象，
-  安裝後的行為和開發時一致。
-- **依責任分層**：`core`（規則，無副作用）→ `client`（畫面）/ `agent`（AI）。
-  `core` 不依賴 pygame，所以訓練時能無畫面跑到每秒上萬 frame，網頁版也能逐行移植。
-- **檔名用 snake_case、表達「是什麼」**：`world.py`、`director.py`、`trainer.py`，
-  不用 `main2.py`、`game_new.py` 這種名字；類別用 PascalCase（`World`、`DuelingQNetwork`），
-  常數用 UPPER_CASE 並集中在 `rules.py`。
-- **單一來源（single source of truth）**：數值只寫在 `rules.py`，網頁版的 `rules.js` 由腳本產生，
-  測試會檢查它沒有過期。
-- **素材用語意化資料夾與檔名**：`enemies/scout.png` 而不是 `enemyGreen1.png`。
-- **可重現**：自訂 xorshift 亂數，同一個 seed 在 Python 和瀏覽器跑出完全一樣的遊戲。
-- **入口集中**：`python -m shmup`、`scripts/*.py`，每個腳本開頭的 docstring 就是使用說明（`--help`）。
+- `core/` 只放遊戲規則、不碰畫面，所以訓練時可以不開視窗、跑得很快，網頁版也能逐行照著寫
+- 所有數字只寫在 `rules.py` 一個地方，網頁版的 `rules.js` 是自動產生的，測試會檢查有沒有過期
+- 自己寫亂數產生器，同一個 seed 在 Python 和瀏覽器會跑出完全一樣的遊戲
 
-## 自動駕駛 Agent（只用 2019 年前的方法）
-
-| 技術 | 出處 |
-|------|------|
-| Deep Q-Network、Experience Replay、Target Network | Mnih et al., *Nature* 2015 |
-| Double DQN | van Hasselt et al., AAAI 2016 |
-| Dueling Network | Wang et al., ICML 2016 |
-| n-step return（n=3） | Sutton 1988；Rainbow 2017 |
-| Adam、Huber loss、ε-greedy、梯度裁剪 | 2014 及更早 |
-
-- **觀測**（284 維，不是像素，所以小 MLP 就學得動，瀏覽器也跑得動）：
-  自機狀態、最近 24 顆子彈（相對位置 + 速度）、最近 8 個敵人、
-  **9×9 危險格**（預測 0/6/12/18 frame 後子彈會在哪）、最近 2 個道具、Boss 狀態。
-- **動作**（18 個）：9 個方向 × {一般速度, 慢速}，每 2 frame 決定一次（30 次 / 秒）；自動射擊。
-- **獎勵**：每步存活 +0.01、掉血 -1、被迫自動炸彈 -0.5、護盾破 -0.3、吃道具 +0.05、
-  分數 ×0.0002、死亡 -1。
-
-### 訓練
-
-```bash
-python scripts/train_cpu.py                      # CPU：8 局並行、256 單元、300 萬步
-python scripts/train_cpu.py --total-steps 500000 # 快速試跑
-python scripts/train_gpu.py                      # GPU：64 局多程序並行、512 單元、batch 512
-python scripts/train_cpu.py --eval-only          # 評估 models/dqn.pt
-python scripts/train_cpu.py --help               # 所有超參數都可以用參數改
-```
-
-最佳模型存到 `models/dqn.pt`，最新的（含 optimizer，可續訓）存到 `models/dqn_last.pt`
-（Ctrl+C 中斷也會存），用 `--resume models/dqn_last.pt` 接著訓練。
-GPU 版只用 PyTorch 1.0 時代就有的 CUDA 功能（無 AMP / MPS），**Mac 沒有 CUDA，請用 CPU 版**。
-
-### 在 Google Colab 上訓練
-
-1. 本機打包：`git archive --format=zip --prefix=vertical-shmup/ -o ~/Desktop/vertical-shmup.zip HEAD`，
-   把 zip 上傳到 Google Drive 根目錄。
-2. 在 Colab 上傳 `notebooks/train_on_colab.ipynb`，執行階段選 **T4 GPU**，依序執行每個 cell。
-   checkpoint 和 log 會存到 `MyDrive/shmup/`，斷線後用 `--resume` 續訓。
-3. 下載 `dqn.pt` 放到 `models/`、`dqn_model.js` 放到 `web/model/`，在本機 demo。
-
-## 網頁版（Demo 用）
-
-```bash
-python scripts/export_web.py        # 把 models/dqn.pt 轉成 web/model/dqn_model.js
-```
-
-然後直接用瀏覽器打開 `web/index.html`；或在專案根目錄開一個本機伺服器（字型和音效載入較完整）：
-
-```bash
-python -m http.server 8000
-```
-
-再開 <http://localhost:8000/web/>。右側面板可以切換自己玩 / 自動駕駛、Agent 視角、
-1× / 2× / 4× 速度、**Jump to boss / Next stage boss**（直接跳到魔王戰），
-並即時顯示 18 個動作的 Q 值與自動駕駛的平均分數。
-網頁版的神經網路推論是手寫的 JavaScript 矩陣乘法，不需要任何 ML 函式庫。
-（Safari 不支援 .ogg 音效，建議用 Chrome / Firefox。）
+---
 
 ## 測試
 
 ```bash
-pip install -e ".[rl,dev]"
+pip install -e ".[game,rl,dev]"
 pytest
 ```
 
-`tests/test_web_parity.py` 會用同一個 seed 分別跑 Python 和 Node.js 版 30,000 frame（包含三種魔王），
-確認分數、子彈數、亂數狀態、觀測向量完全一致，並確認匯出的網路在 JS 中算出的 Q 值和 PyTorch 相同；
-沒有安裝 Node.js 時會自動跳過。
+`tests/test_web_parity.py` 會用同一個 seed，分別在 Python 和 Node.js 跑 30,000 個 frame（三種魔王都會出現），
+檢查分數、子彈數、亂數狀態、觀測向量是否完全一樣，也會檢查匯出的網路在 JavaScript 算出的 Q 值和 PyTorch 一樣。
+沒有安裝 Node.js 時這個測試會自動跳過。
 
-## 2019 年前規範
+---
 
-- **素材**：Kenney Space Shooter Redux（2014）、Digital Audio（2012）、Music Jingles（2014），
-  OpenGameArt 上 Matthew Pablo 的 *Orbital Colossus*（2013）。壓縮檔內的檔案日期也都在 2019 年前。
-  詳見 [CREDITS.md](CREDITS.md)。
-- **演算法**：見上表，最新的是 2017 年。
-- **函式庫**：pygame（2000）、NumPy（2006）、PyTorch（2016），程式只用 PyTorch 1.0（2018）就有的 API；
-  NumPy 只用舊式 `RandomState`。網頁版只用 HTML5 Canvas 與 ES5/ES2015 語法，沒有任何外部函式庫。
-  （在新版 Python 上要用新版 pygame / PyTorch 安裝，但用到的功能在 2019 年前都已存在。）
+## 2019 年以前檢查
+
+### 素材
+
+| 素材 | 發布年份 | 檔案日期（原始壓縮檔內） | 授權 |
+|------|---------|------------------------|------|
+| Kenney Space Shooter Redux（戰機、敵人、魔王、雷射、道具、背景、字型、部分音效） | 2014 | 2013-11 ～ 2014-01 | CC0 |
+| Kenney Digital Audio（撿道具、爆炸、炸彈、受傷音效） | 2012 | 2017-10（重新打包） | CC0 |
+| Kenney Music Jingles（過關音效） | 2014 | 2014-03 | CC0 |
+| Matthew Pablo《Orbital Colossus》（背景音樂） | 2013 | MP3 標籤年份 2013 | CC-BY 3.0 |
+
+`docs/` 裡的圖片是這個遊戲自己的截圖。爆炸、星空、發光子彈等特效是程式畫出來的，沒有用額外的圖片。
+完整來源見 [CREDITS.md](CREDITS.md)。
+
+### 演算法
+
+| 演算法 | 年份 |
+|--------|------|
+| Q-learning | 1989 |
+| n-step TD | 1988 |
+| Adam | 2014 |
+| DQN、經驗回放、目標網路 | 2015 |
+| Double DQN、Dueling Network | 2016 |
+| Rainbow（n-step 設定參考） | 2017 |
+| xorshift 亂數 | 2003 |
+
+### 函式庫與工具
+
+| 名稱 | 最低版本（發布年份） | 用在哪裡 |
+|------|-------------------|---------|
+| Python | 3.6（2016） | 全部 |
+| numpy | 1.15（2018） | 只用舊的 `RandomState`、`stack` 等基本功能 |
+| PyTorch | 1.0（2018-12） | 只用 1.0 就有的 API；沒有 AMP、MPS、`torch.compile` |
+| pygame | 1.9.4（2018） | 只用 1.9 就有的功能；淡出效果用 `BLEND_RGBA_MULT`，不依賴 pygame 2 才支援的 `set_alpha` |
+| setuptools（`setup.py`） | 2019 年以前的傳統寫法 | 安裝 |
+| pytest | 4.0（2018） | 測試 |
+| Node.js | 只用 2016 年就有的 API | 只有一致性測試會用到 |
+| 網頁版 | HTML5 Canvas、ES5 / ES2015、CSS Grid（2017） | 沒有任何外部 JavaScript 函式庫 |
+| Google Colab | 2017 年推出 | 訓練環境 |
+
+在新版的 Python（例如 3.13）上安裝時，需要用新版的 pygame / PyTorch 才裝得起來，
+但程式裡用到的功能在上表的舊版本就已經存在。

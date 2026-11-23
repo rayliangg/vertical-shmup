@@ -1,4 +1,4 @@
-// Canvas 2D renderer: background, sprites, particles, HUD and the agent view.
+// Canvas 2D 繪圖：背景、角色、粒子、HUD、agent 視角。
 (function (S) {
   "use strict";
   var R = S.RULES;
@@ -80,7 +80,7 @@
     return c;
   };
 
-  // ------------------------------------------------------------------ effects
+  // ------------------------------------------------------------------ 特效
   Renderer.prototype.sparks = function (x, y, color, count, speed, life, size) {
     for (var i = 0; i < count && this.particles.length < 600; i++) {
       var a = rand(0, Math.PI * 2), s = rand(0.3, 1) * speed, n = Math.floor(rand(life * 0.6, life));
@@ -169,7 +169,7 @@
     if (this.flash) this.flash -= 1;
   };
 
-  // ------------------------------------------------------------------ drawing
+  // ------------------------------------------------------------------ 繪圖
   Renderer.prototype.sprite = function (key, x, y, width, angle, alpha) {
     var img = this.images[key];
     if (!img || !img.width) return;
@@ -205,7 +205,7 @@
 
     ctx.save();
     if (this.shake) ctx.translate(rand(-this.shake, this.shake), rand(-this.shake, this.shake));
-    // background tiles + stars
+    // 背景圖 + 星星
     var bg = this.images["bg" + ((world.stage - 1) % 4)];
     this.scroll = (this.scroll + 0.6 * boost) % 256;
     if (bg && bg.width) {

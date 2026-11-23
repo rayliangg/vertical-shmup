@@ -1,8 +1,8 @@
-// Browser entry point: fixed-timestep loop, input, scenes and the demo panel.
+// 網頁版進入點：固定時間步長的主迴圈、輸入、場景、右側 demo 面板。
 (function (S) {
   "use strict";
   var R = S.RULES, F = S.Features;
-  var FRAME_SKIP = 2;                        // agent decides every 2 frames, like training
+  var FRAME_SKIP = 2;                        // agent 每 2 個 frame 決定一次，跟訓練時一樣
   var STEP_MS = 1000 / R.FPS;
 
   var canvas = document.getElementById("game");
@@ -17,7 +17,7 @@
     best: readBest(), runs: [], obs: new Float64Array(F.OBS_DIM)
   };
 
-  // ------------------------------------------------------------- persistence
+  // ------------------------------------------------------------- 最高分存檔
   function readBest() {
     try { return parseInt(localStorage.getItem("shmup.best") || "0", 10) || 0; }
     catch (e) { return 0; }
@@ -26,12 +26,12 @@
     try { localStorage.setItem("shmup.best", String(v)); } catch (e) { /* private mode */ }
   }
 
-  // ------------------------------------------------------------- UI panel
+  // ------------------------------------------------------------- 右側面板
   var $ = function (id) { return document.getElementById(id); };
   function setAutopilot(on) {
     state.autopilot = !!(on && policy);
     $("btn-autopilot").classList.toggle("on", state.autopilot);
-    $("btn-autopilot").textContent = state.autopilot ? "Autopilot: ON" : "Autopilot: OFF";
+    $("btn-autopilot").textContent = state.autopilot ? "自動駕駛：開" : "自動駕駛：關";
   }
   function setSpeed(v) {
     state.speed = v;
@@ -48,12 +48,12 @@
     if (policy) {
       var m = policy.meta || {}, ev = m.eval || {};
       $("model-info").innerHTML =
-        "Dueling Double DQN &middot; " + S.MODEL.hidden + " hidden units<br>" +
-        (m.step ? "trained " + Number(m.step).toLocaleString() + " decisions<br>" : "") +
-        (ev.survival ? "eval survival " + Math.round(ev.survival / 30) + " s, stage " +
-         Number(ev.stage).toFixed(1) : "");
+        "Dueling Double DQN &middot; 隱藏層 " + S.MODEL.hidden + " 單元<br>" +
+        (m.step ? "訓練了 " + Number(m.step).toLocaleString() + " 步<br>" : "") +
+        (ev.survival ? "評估：平均存活 " + Math.round(ev.survival / 30) + " 秒，平均第 " +
+         Number(ev.stage).toFixed(1) + " 關" : "");
     } else {
-      $("model-info").innerHTML = "No model found.<br>Train, then run<br>" +
+      $("model-info").innerHTML = "還沒有模型。<br>請先訓練，再執行<br>" +
         "<code>python scripts/export_web.py</code>";
       $("btn-autopilot").disabled = true;
     }
@@ -65,7 +65,7 @@
     };
     $("btn-view").onclick = function () { setAgentView(!renderer.showAgentView); canvas.focus(); };
     $("btn-mute").onclick = function () {
-      $("btn-mute").textContent = audio.toggle() ? "Sound: ON" : "Sound: OFF";
+      $("btn-mute").textContent = audio.toggle() ? "音效：開" : "音效：關";
       canvas.focus();
     };
     $("btn-boss").onclick = function () { jumpToBoss(0); canvas.focus(); };
@@ -86,7 +86,7 @@
   function actionLabel(a) {
     var arrows = { "0,0": "·", "-1,0": "←", "1,0": "→", "0,-1": "↑", "0,1": "↓",
                    "-1,-1": "↖", "1,-1": "↗", "-1,1": "↙", "1,1": "↘" };
-    return arrows[a[0] + "," + a[1]] + (a[2] ? " slow" : "");
+    return arrows[a[0] + "," + a[1]] + (a[2] ? " 慢" : "");
   }
 
   function updatePanel() {
@@ -109,7 +109,7 @@
     }
   }
 
-  // ------------------------------------------------------------- game flow
+  // ------------------------------------------------------------- 遊戲流程
   function newGame() {
     world.reset(Math.floor(Math.random() * 1e9));
     renderer.reset();
@@ -118,7 +118,7 @@
     audio.start();
   }
 
-  // Demo shortcut: skip the waves and fight the stage boss (optionally of a later stage).
+  // demo 用的捷徑：跳過雜魚直接打魔王（也可以跳到下一關的魔王）。
   function jumpToBoss(extraStages) {
     if (state.scene !== "playing") newGame();
     world.stage += extraStages;
@@ -192,7 +192,7 @@
     }
   }
 
-  // ------------------------------------------------------------- input
+  // ------------------------------------------------------------- 鍵盤輸入
   window.addEventListener("keydown", function (e) {
     state.keys[e.code] = true;
     if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space", "Tab"].indexOf(e.code) >= 0) {
@@ -205,7 +205,7 @@
     } else if (e.code === "KeyV") {
       setAgentView(!renderer.showAgentView);
     } else if (e.code === "KeyM") {
-      $("btn-mute").textContent = audio.toggle() ? "Sound: ON" : "Sound: OFF";
+      $("btn-mute").textContent = audio.toggle() ? "音效：開" : "音效：關";
     } else if (state.scene === "title" && (e.code === "Enter" || e.code === "Space")) {
       setAutopilot(false); newGame();
     } else if (state.scene === "title" && e.code === "KeyA" && policy) {
@@ -221,7 +221,7 @@
   window.addEventListener("keyup", function (e) { state.keys[e.code] = false; });
   window.addEventListener("blur", function () { state.keys = {}; });
 
-  // ------------------------------------------------------------- loop
+  // ------------------------------------------------------------- 主迴圈
   var last = 0, acc = 0, panelTick = 0;
   function frame(now) {
     if (!last) last = now;
@@ -241,7 +241,7 @@
     requestAnimationFrame(frame);
   }
 
-  S.debug = { world: function () { return world; }, state: state };   // for the console
+  S.debug = { world: function () { return world; }, state: state };   // 方便在瀏覽器 console 除錯
   initPanel();
   setSpeed(1);
   renderer.load(function () { requestAnimationFrame(frame); });

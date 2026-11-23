@@ -1,1 +1,1 @@
-"""pygame front end (window, input, rendering, audio)."""
+"""pygame 前端（視窗、輸入、畫面、音效）。"""

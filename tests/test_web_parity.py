@@ -1,4 +1,4 @@
-"""The browser port must simulate exactly like the Python game the agent trains on."""
+"""網頁版的模擬必須和訓練用的 Python 版完全一樣。"""
 import json
 import math
 import shutil
@@ -13,7 +13,7 @@ from shmup.paths import ROOT, WEB_DIR
 
 NODE = shutil.which("node")
 HARNESS = ROOT / "tests" / "js_harness.js"
-FRAMES = 30000                 # long enough to see all three stage bosses
+FRAMES = 30000                 # 夠長，三種關卡魔王都會出現
 
 
 def python_trace(seed, frames, net=None):
@@ -44,15 +44,15 @@ def node_trace(seed, frames, model_js=None):
 
 def test_rules_js_is_up_to_date():
     assert (WEB_DIR / "js" / "rules.js").read_text() == rules_js(), \
-        "web/js/rules.js is stale: run python scripts/export_web.py --rules-only"
+        "web/js/rules.js 過期了：請執行 python scripts/export_web.py --rules-only"
 
 
-@pytest.mark.skipif(NODE is None, reason="node.js not installed")
+@pytest.mark.skipif(NODE is None, reason="沒有安裝 node.js")
 @pytest.mark.parametrize("seed", [1, 42])
 def test_simulation_matches_browser(seed):
     py, js = python_trace(seed, FRAMES), node_trace(seed, FRAMES)
     assert len(py) == len(js)
-    assert py[-1]["stage"] >= 2, "trace should reach a boss fight and stage 2"
+    assert py[-1]["stage"] >= 2, "模擬應該要打到魔王並進入第 2 關"
     for a, b in zip(py, js):
         for key in ("frame", "score", "stage", "bullets", "enemies", "items", "state"):
             assert a[key] == b[key], (key, a["frame"], a[key], b[key])
@@ -62,7 +62,7 @@ def test_simulation_matches_browser(seed):
             assert math.isclose(u, v, abs_tol=1e-9), ("obs", a["frame"], i, u, v)
 
 
-@pytest.mark.skipif(NODE is None, reason="node.js not installed")
+@pytest.mark.skipif(NODE is None, reason="沒有安裝 node.js")
 def test_exported_network_matches_torch(tmp_path):
     torch = pytest.importorskip("torch")
     from shmup.agent.dqn import DuelingQNetwork

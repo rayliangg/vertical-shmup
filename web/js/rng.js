@@ -1,4 +1,4 @@
-// xorshift32 PRNG - exact port of src/shmup/core/rng.py (same seed -> same numbers).
+// xorshift32 亂數：完全對照 src/shmup/core/rng.py（同一個 seed 會產生同樣的亂數）。
 (function (S) {
   "use strict";
 
@@ -25,7 +25,7 @@
   Rng.prototype.randint = function (a, b) { return a + Math.floor(this.random() * (b - a + 1)); };
   Rng.prototype.chance = function (p) { return this.random() < p; };
 
-  // pairs: [[key, weight], ...]
+  // pairs：[[key, 權重], ...]
   Rng.prototype.weighted = function (pairs) {
     var total = 0, i;
     for (i = 0; i < pairs.length; i++) total += pairs[i][1];

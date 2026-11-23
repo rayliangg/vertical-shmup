@@ -1,4 +1,4 @@
-"""Make `import shmup` work without `pip install -e .` (adds ../src to sys.path)."""
+"""讓腳本不用先 `pip install -e .` 也能 `import shmup`（把 ../src 加進 sys.path）。"""
 import os
 import sys
 

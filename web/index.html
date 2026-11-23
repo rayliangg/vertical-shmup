@@ -1,55 +1,55 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-Hant">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Vertical Shmup · DQN Autopilot</title>
+  <title>Vertical Shmup · DQN 自動駕駛</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <main class="layout">
     <section class="stage">
-      <canvas id="game" width="480" height="720" tabindex="0" aria-label="Game"></canvas>
+      <canvas id="game" width="480" height="720" tabindex="0" aria-label="遊戲畫面"></canvas>
     </section>
 
     <aside class="panel">
       <h1>Vertical Shmup</h1>
-      <p class="sub">Bullet-hell shooter flown by a Deep Q-Network</p>
+      <p class="sub">由 Deep Q-Network 自動駕駛的彈幕射擊遊戲</p>
 
       <div class="buttons">
-        <button id="btn-play">Play yourself</button>
-        <button id="btn-autopilot">Autopilot: OFF</button>
-        <button id="btn-view">Agent view</button>
-        <button id="btn-mute">Sound: ON</button>
-        <button id="btn-boss">Jump to boss</button>
-        <button id="btn-stage">Next stage boss</button>
+        <button id="btn-play">自己玩</button>
+        <button id="btn-autopilot">自動駕駛：關</button>
+        <button id="btn-view">Agent 視角</button>
+        <button id="btn-mute">音效：開</button>
+        <button id="btn-boss">直接打魔王</button>
+        <button id="btn-stage">下一關魔王</button>
       </div>
       <div class="speed">
-        Speed
+        速度
         <button data-speed="1">1×</button>
         <button data-speed="2">2×</button>
         <button data-speed="4">4×</button>
       </div>
 
-      <h2>Run</h2>
+      <h2>本局</h2>
       <dl class="stats">
-        <dt>Score</dt><dd id="stat-score">0</dd>
-        <dt>Stage</dt><dd id="stat-stage">1</dd>
-        <dt>Best</dt><dd id="stat-best">0</dd>
-        <dt>Autopilot runs</dt><dd id="stat-runs">0</dd>
-        <dt>Autopilot avg</dt><dd id="stat-avg">-</dd>
+        <dt>分數</dt><dd id="stat-score">0</dd>
+        <dt>關卡</dt><dd id="stat-stage">1</dd>
+        <dt>最高分</dt><dd id="stat-best">0</dd>
+        <dt>自動駕駛局數</dt><dd id="stat-runs">0</dd>
+        <dt>自動駕駛平均分</dt><dd id="stat-avg">-</dd>
       </dl>
 
-      <h2>Model</h2>
+      <h2>模型</h2>
       <p id="model-info" class="model"></p>
 
-      <h2>Q-values <small>(autopilot)</small></h2>
+      <h2>Q 值 <small>（自動駕駛時）</small></h2>
       <div id="q-bars" class="q-bars"></div>
 
-      <h2>Controls</h2>
+      <h2>操作</h2>
       <p class="controls">
-        Arrows / WASD move · Shift slow · X bomb<br>
-        Tab autopilot · V agent view · P pause · M mute
+        方向鍵 / WASD 移動 · Shift 慢速 · X 炸彈<br>
+        Tab 自動駕駛 · V agent 視角 · P 暫停 · M 靜音
       </p>
     </aside>
   </main>
@@ -58,7 +58,7 @@
   <script src="js/rng.js"></script>
   <script src="js/core.js"></script>
   <script src="js/features.js"></script>
-  <script src="model/dqn_model.js" onerror="console.info('No exported model yet.')"></script>
+  <script src="model/dqn_model.js" onerror="console.info('還沒有匯出模型')"></script>
   <script src="js/policy.js"></script>
   <script src="js/renderer.js"></script>
   <script src="js/audio.js"></script>

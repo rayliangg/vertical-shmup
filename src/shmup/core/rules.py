@@ -1,42 +1,41 @@
-"""Gameplay rules: the single source of truth for every tunable number.
+"""遊戲規則：所有可以調整的數字都只寫在這裡。
 
-Only plain numbers, strings, tuples and dicts live here, because
-`scripts/export_web.py` copies this module into `web/js/rules.js` so the
-browser version plays by exactly the same rules as the Python one.
+這裡只放數字、字串、tuple 和 dict，因為 `scripts/export_web.py`
+會把整個檔案轉成 `web/js/rules.js`，讓網頁版和 Python 版的規則完全一樣。
 """
 
-# --- Arena ---------------------------------------------------------------
+# --- 場地 ----------------------------------------------------------------
 WIDTH = 480
 HEIGHT = 720
 FPS = 60
 
-# --- Player --------------------------------------------------------------
+# --- 玩家 ----------------------------------------------------------------
 PLAYER_SPEED = 4.5
-PLAYER_FOCUS_SPEED = 2.0            # slow, precise movement (hold Shift)
-PLAYER_RADIUS = 5.0                 # tiny bullet-hell hit box
-PLAYER_GRAZE_RADIUS = 20.0          # bullets passing this close score a graze
-PLAYER_HALF_W = 25.0                # sprite half size, used to clamp movement
+PLAYER_FOCUS_SPEED = 2.0            # 按住 Shift 的慢速精準移動
+PLAYER_RADIUS = 5.0                 # 彈幕遊戲的超小判定點
+PLAYER_GRAZE_RADIUS = 20.0          # 子彈擦過這個距離內就算擦彈
+PLAYER_HALF_W = 25.0                # 機體圖片的一半大小，用來限制不能飛出畫面
 PLAYER_HALF_H = 19.0
 PLAYER_START_Y = 640.0
 PLAYER_MAX_HP = 5
 PLAYER_START_BOMBS = 2
 PLAYER_MAX_BOMBS = 3
 PLAYER_MAX_POWER = 4
-INVULN_FRAMES = 90                  # mercy frames after a hit
+INVULN_FRAMES = 90                  # 被打之後的無敵時間
 SHIELD_INVULN_FRAMES = 60
 BOMB_INVULN_FRAMES = 60
 BOMB_DAMAGE = 12
-AUTO_BOMB = True                    # a hit spends a bomb instead of HP if one is left
-CONTACT_DAMAGE_TO_ENEMY = 5         # ramming an enemy hurts it too
-DIAGONAL = 0.7071067811865476       # 1 / sqrt(2), written out so JS and Python agree
+AUTO_BOMB = True                    # 被打中時如果還有炸彈，就自動用炸彈抵銷
+CONTACT_DAMAGE_TO_ENEMY = 5         # 撞到敵人時敵人也會受傷
+DIAGONAL = 0.7071067811865476       # 1 / sqrt(2)，直接寫數字讓 JS 和 Python 算出來一樣
 
-# --- Player weapon -------------------------------------------------------
+# --- 玩家武器 ------------------------------------------------------------
 FIRE_INTERVAL = 6
 SHOT_SPEED = 13.0
 SHOT_RADIUS = 6.0
 SHOT_DAMAGE = 1
 
-# --- Items ---------------------------------------------------------------
+# --- 道具 ----------------------------------------------------------------
 ITEM_POWER = 0
 ITEM_HEAL = 1
 ITEM_SHIELD = 2
@@ -51,18 +50,18 @@ ITEM_FALL_SPEED = 1.6
 ITEM_POP_SPEED = -2.2
 ITEM_MAGNET_RADIUS = 70.0
 ITEM_MAGNET_SPEED = 8.0
-COLLECT_LINE_Y = 180.0              # fly above this line and every item comes to you
+COLLECT_LINE_Y = 180.0              # 飛到這條線以上，所有道具都會自動吸過來
 
-# --- Scoring -------------------------------------------------------------
+# --- 分數 ----------------------------------------------------------------
 GRAZE_SCORE = 5
-BULLET_CANCEL_SCORE = 10            # per enemy bullet erased by a bomb / boss kill
+BULLET_CANCEL_SCORE = 10            # 炸彈或打倒魔王時，每消掉一顆子彈給的分數
 
-# --- Enemy bullets -------------------------------------------------------
+# --- 敵人子彈 ------------------------------------------------------------
 BULLET_RADIUS = {"orb": 5.0, "big": 9.0, "laser": 4.0}
-BULLET_MARGIN = 24.0                # removed once this far outside the arena
+BULLET_MARGIN = 24.0                # 飛出畫面這麼遠就刪掉
 
-# --- Enemies -------------------------------------------------------------
-# radius = hit circle, drop = chance to drop an item when destroyed
+# --- 敵人 ----------------------------------------------------------------
+# radius = 碰撞半徑，drop = 被打倒時掉道具的機率
 ENEMIES = {
     "scout": {"hp": 3, "radius": 18.0, "score": 100, "drop": 0.12},
     "weaver": {"hp": 5, "radius": 20.0, "score": 150, "drop": 0.18},
@@ -71,19 +70,19 @@ ENEMIES = {
     "meteor_big": {"hp": 6, "radius": 30.0, "score": 50, "drop": 0.08},
     "meteor_medium": {"hp": 3, "radius": 15.0, "score": 30, "drop": 0.05},
     "meteor_small": {"hp": 1, "radius": 9.0, "score": 10, "drop": 0.0},
-    # bosses ("boss": True shows the HP bar and pauses the waves)
+    # 魔王（"boss": True 會顯示血條，而且出現時雜魚會暫停）
     "midboss": {"hp": 120, "radius": 32.0, "score": 3000, "drop": 1.0, "boss": True},
     "boss_warden": {"hp": 360, "radius": 50.0, "score": 10000, "drop": 1.0, "boss": True},
     "boss_carrier": {"hp": 420, "radius": 46.0, "score": 12000, "drop": 1.0, "boss": True},
     "boss_fang": {"hp": 400, "radius": 44.0, "score": 15000, "drop": 1.0, "boss": True},
 }
-BOSS_HP_PER_STAGE = 0.30            # +30% boss HP for every stage after the first
+BOSS_HP_PER_STAGE = 0.30            # 第 2 關開始，每多一關魔王 HP +30%
 BOSS_ITEM_DROPS = 8
 MIDBOSS_ITEM_DROPS = 3
 
-# --- Boss stages -----------------------------------------------------------
-# Each stage: waves -> mid-boss -> waves -> WARNING -> stage boss (3 phases).
-# The stage boss cycles Warden -> Carrier -> Fang -> Warden (harder) -> ...
+# --- 魔王關卡 --------------------------------------------------------------
+# 每一關：雜魚 -> 中魔王 -> 雜魚 -> WARNING -> 關卡魔王（3 個階段）。
+# 關卡魔王輪流出現：Warden -> Carrier -> Fang -> Warden（更強）-> ...
 BOSS_ORDER = ("boss_warden", "boss_carrier", "boss_fang")
 BOSS_NAMES = {
     "midboss": "SENTINEL",
@@ -91,29 +90,29 @@ BOSS_NAMES = {
     "boss_carrier": "HIVE CARRIER",
     "boss_fang": "TWIN FANG",
 }
-# Phase names shown as a banner, like "spell cards" in danmaku games.
+# 每個階段的名稱會顯示在畫面上，類似彈幕遊戲的「符卡」。
 PHASE_NAMES = {
     "midboss": ("Ring Guard", "Ring Guard", "Ring Guard"),
     "boss_warden": ("Aimed Fans", "Twin Spiral", "Last Stand"),
     "boss_carrier": ("Drone Bay", "Bloom", "Laser Rain"),
     "boss_fang": ("Crossfire", "Pinwheel", "Fang Rush"),
 }
-PHASE_THRESHOLDS = (0.66, 0.33)     # HP fraction where phase 2 and phase 3 start
-BOSS_PHASE_TIME = 1800              # survive 30 s and the phase times out (no bonus)
-PHASE_BONUS = 1000                  # score for breaking a phase before the timeout
-MIDBOSS_TIME = 1500                 # frames into a stage when the mid-boss appears
-MIDBOSS_ESCAPE = 1500               # mid-boss leaves after this many frames
-MAX_DRONES = 6                      # Hive Carrier's launched divers on screen
-ENEMY_CONTACT_SCALE = 0.8           # enemy bodies are a bit smaller than they look
+PHASE_THRESHOLDS = (0.66, 0.33)     # HP 剩多少比例時進入第 2、第 3 階段
+BOSS_PHASE_TIME = 1800              # 撐過 30 秒這個階段就時間到（沒有獎勵分）
+PHASE_BONUS = 1000                  # 時間內打破一個階段的獎勵分
+MIDBOSS_TIME = 1500                 # 每關開始後第幾個 frame 出現中魔王
+MIDBOSS_ESCAPE = 1500               # 中魔王停留幾個 frame 後會飛走
+MAX_DRONES = 6                      # Hive Carrier 放出的無人機在畫面上最多幾隻
+ENEMY_CONTACT_SCALE = 0.8           # 敵人的碰撞範圍比圖片小一點
 
-# --- Director (wave spawning) --------------------------------------------
+# --- Director（出怪控制） -----------------------------------------------
 WAVE_INTERVAL_START = 150
 WAVE_INTERVAL_MIN = 55
-BOSS_TIME = 4200                    # frames into a stage before the boss warning
+BOSS_TIME = 4200                    # 每關開始後第幾個 frame 出現魔王警告
 BOSS_WARNING_FRAMES = 150
 DIFFICULTY_PER_STAGE = 0.25
-DIFFICULTY_IN_STAGE = 0.35          # extra difficulty reached right before the boss
-# (wave name, weight), in a fixed order; gunships only after GUNSHIP_AFTER frames
+DIFFICULTY_IN_STAGE = 0.35          # 魔王出現前難度會再往上加這麼多
+# (波次名稱, 權重)，順序固定；Gunship 要過了 GUNSHIP_AFTER 個 frame 才會出現
 WAVES = (
     ("scout_line", 3),
     ("scout_vee", 2),

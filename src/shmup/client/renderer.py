@@ -1,11 +1,11 @@
-"""Draws a World with pygame: background, sprites, effects, HUD, agent overlay."""
+"""用 pygame 畫出 World：背景、角色、特效、HUD、agent 視角。"""
 import math
 
 import pygame
 
 from ..agent.features import ACTIONS, CELL, GRID, OFF_GRID
 from ..core import rules as R
-from .effects import Effects
+from .effects import Effects, faded
 
 BACKGROUNDS = ("dark_purple.png", "blue.png", "purple.png", "black.png")
 ENEMY_SPRITES = {
@@ -16,7 +16,7 @@ ENEMY_SPRITES = {
     "meteor_big": "enemies/meteor_big.png",
     "meteor_medium": "enemies/meteor_medium.png", "meteor_small": "enemies/meteor_small.png",
 }
-ENEMY_WIDTH_SCALE = 2.7        # sprite width = radius * this
+ENEMY_WIDTH_SCALE = 2.7        # 圖片寬度 = 碰撞半徑 * 這個倍數
 ITEM_SPRITES = ("items/power.png", "items/heal.png", "items/shield.png",
                 "items/bomb.png", "items/score.png")
 ITEM_COLORS = ((255, 210, 60), (90, 255, 120), (110, 200, 255), (255, 90, 90),
@@ -35,12 +35,12 @@ class Renderer:
         self.fx = Effects()
         self.bank = 0.0
         self.tick = 0
-        self.banner = None              # (text, frames_left, color)
-        self.subtitle = None            # (boss phase name, frames_left)
+        self.banner = None              # (文字, 剩幾個 frame, 顏色)
+        self.subtitle = None            # (魔王階段名稱, 剩幾個 frame)
         self.show_agent_view = False
         self._text_cache = {}
 
-    # -- text ----------------------------------------------------------------
+    # -- 文字 ----------------------------------------------------------------
     def text_surface(self, text, size, color=WHITE, thin=False):
         key = (text, size, color, thin)
         surf = self._text_cache.get(key)
@@ -59,7 +59,7 @@ class Renderer:
         target.blit(shadow, rect.move(2, 2))
         target.blit(surf, rect)
 
-    # -- events -> effects ---------------------------------------------------
+    # -- 遊戲事件 -> 特效 ---------------------------------------------------
     def reset(self):
         self.fx.clear()
         self.subtitle = None
@@ -110,7 +110,7 @@ class Renderer:
                 self.banner = ("BOSS ESCAPED", 120, (200, 200, 255))
                 self.subtitle = None
 
-    # -- frame -----------------------------------------------------------------
+    # -- 每一個 frame -------------------------------------------------------
     def draw(self, world, overlay=None):
         self.tick += 1
         surf = self.world_surf
@@ -140,12 +140,12 @@ class Renderer:
             self._draw_agent_view(world, overlay)
         self._draw_hud(world)
 
-    # -- entities ------------------------------------------------------------------
+    # -- 遊戲物件 ------------------------------------------------------------------
     def _draw_player(self, surf, p):
         self.bank += (p.move_x * -14 - self.bank) * 0.25
         angle = int(round(self.bank / 2.0)) * 2
         blink = p.invuln and (p.invuln // 4) % 2
-        # engine flame
+        # 引擎火焰
         flicker = 10 + (self.tick % 4) * 3
         cx, cy = int(p.x), int(p.y + R.PLAYER_HALF_H - 4)
         pygame.draw.polygon(surf, (255, 150, 40), [(cx - 6, cy), (cx + 6, cy), (cx, cy + flicker)])
@@ -155,8 +155,7 @@ class Renderer:
             surf.blit(ship, ship.get_rect(center=(int(p.x), int(p.y))))
         if p.shield:
             w = 74 + int(4 * math.sin(self.tick * 0.2))
-            shield = self.assets.sprite("effects/shield.png", w)
-            shield.set_alpha(170)
+            shield = faded(self.assets.sprite("effects/shield.png", w), 170)
             surf.blit(shield, shield.get_rect(center=(int(p.x), int(p.y) - 4)))
         if p.focus or self.show_agent_view:
             pygame.draw.circle(surf, (255, 60, 60), (int(p.x), int(p.y)), int(R.PLAYER_RADIUS) + 2)
@@ -200,7 +199,7 @@ class Renderer:
             img = self.assets.sprite(ITEM_SPRITES[it.kind], 24)
             surf.blit(img, img.get_rect(center=(int(it.x), int(it.y + bob))))
 
-    # -- agent view (what the network sees) --------------------------------------------
+    # -- agent 視角（網路看到的東西） --------------------------------------------
     def _draw_agent_view(self, world, overlay):
         obs, q_values, action = overlay
         p = world.player
@@ -230,12 +229,12 @@ class Renderer:
         pygame.draw.rect(scr, (255, 70, 90), (x, y, int(w * boss.hp / boss.max_hp), 8))
         pygame.draw.rect(scr, WHITE, (x, y, w, 8), 1)
         if boss.kind != "midboss":
-            for t in R.PHASE_THRESHOLDS:                   # phase dividers
+            for t in R.PHASE_THRESHOLDS:                   # 階段分隔線
                 pygame.draw.line(scr, WHITE, (x + int(w * t), y - 2), (x + int(w * t), y + 9))
             left = max(0, R.BOSS_PHASE_TIME - boss.phase_timer) // R.FPS
             self.text("%02d" % left, 11, (x + w, y - 16), (255, 230, 150), "topright")
 
-    # -- HUD ------------------------------------------------------------------
+    # -- HUD（分數、血量） ---------------------------------------------------
     def _draw_hud(self, world):
         p = world.player
         scr = self.screen

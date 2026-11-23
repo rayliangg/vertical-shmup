@@ -1,18 +1,18 @@
-// Dueling Q-network forward pass in plain JavaScript (no ML library needed).
-// Weights come from web/model/dqn_model.js, written by scripts/export_web.py.
+// 用純 JavaScript 算 Dueling Q 網路（不需要任何機器學習函式庫）。
+// 權重來自 web/model/dqn_model.js，由 scripts/export_web.py 產生。
 (function (S) {
   "use strict";
 
   function decode(b64) {
     var bin = atob(b64), bytes = new Uint8Array(bin.length);
     for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    return new Float32Array(bytes.buffer);          // little-endian float32
+    return new Float32Array(bytes.buffer);          // little-endian 的 float32
   }
 
   function Linear(spec) {
     this.nIn = spec["in"];
     this.nOut = spec.out;
-    this.w = decode(spec.w);                         // [out][in], row-major
+    this.w = decode(spec.w);                         // [輸出][輸入]，row-major 排列
     this.b = decode(spec.b);
   }
   Linear.prototype.forward = function (x, relu) {
@@ -40,7 +40,7 @@
   }
 
   Policy.prototype.qValues = function (obs) {
-    var h = this.torso[0].forward(obs, true);        // both torso layers use ReLU
+    var h = this.torso[0].forward(obs, true);        // 主幹的兩層都要過 ReLU
     h = this.torso[1].forward(h, true);
     var v = run(this.value, h)[0];
     var a = run(this.advantage, h), mean = 0, i;
@@ -61,8 +61,8 @@
   S.loadPolicy = function () {
     if (!S.MODEL) return null;
     if (S.MODEL.obs_dim !== S.Features.OBS_DIM) {
-      console.warn("Model expects", S.MODEL.obs_dim, "inputs but the game provides",
-                   S.Features.OBS_DIM, "- re-export the model.");
+      console.warn("模型需要", S.MODEL.obs_dim, "維輸入，但遊戲提供", S.Features.OBS_DIM,
+                   "維，請重新匯出模型。");
       return null;
     }
     return new Policy(S.MODEL);

@@ -1,4 +1,4 @@
-// Observation vector for the Q-network - exact port of src/shmup/agent/features.py.
+// Q 網路的觀測向量：完全對照 src/shmup/agent/features.py。
 (function (S) {
   "use strict";
   var R = S.RULES;
@@ -64,7 +64,7 @@
     }
   }
 
-  // Returns a Float64Array(OBS_DIM) (or fills `out`).
+  // 回傳 Float64Array(OBS_DIM)（或直接填進 `out`）。
   function observe(world, out) {
     var o = out || new Float64Array(OBS_DIM);
     if (out) o.fill(0);

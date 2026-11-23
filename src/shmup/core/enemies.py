@@ -1,7 +1,7 @@
-"""Enemy ships, meteors and the boss.
+"""敵機、隕石、魔王。
 
-All enemies share one data class; the behaviour is a per-kind update
-function. This keeps the code easy to mirror in web/js/core.js.
+所有敵人共用同一個資料類別，不同種類的行為寫成不同的 update 函式，
+這樣比較好對照著寫 web/js/core.js。
 """
 import math
 
@@ -35,10 +35,10 @@ class Enemy:
         self.amp = 0.0
         self.phase = 0.0
         self.target_y = 0.0
-        self.flash = 0              # frames of white hit-flash (cosmetic)
+        self.flash = 0              # 被打到時閃白光的 frame 數（只是視覺效果）
         self.is_boss = spec.get("boss", False)
-        self.phase_index = 0        # boss phase 0 / 1 / 2
-        self.phase_timer = 0        # frames spent in the current boss phase
+        self.phase_index = 0        # 魔王階段 0 / 1 / 2
+        self.phase_timer = 0        # 目前這個階段已經過了幾個 frame
 
     @property
     def damageable(self):
@@ -60,7 +60,7 @@ def _offscreen(e, margin=60.0):
             or e.x < -margin or e.x > R.WIDTH + margin)
 
 
-# --- behaviours -------------------------------------------------------------
+# --- 各種敵人的行為 ----------------------------------------------------------
 def _scout(e, w):
     e.x += e.vx
     e.y += e.vy
@@ -89,18 +89,18 @@ def _weaver(e, w):
 
 
 def _diver(e, w):
-    if e.state == 0:                      # drop in
+    if e.state == 0:                      # 往下飛進場
         e.y += e.vy
         if e.y >= e.target_y:
             e.state, e.timer, e.vy = 1, 35, 0.0
-    elif e.state == 1:                    # lock on (the renderer shakes it)
+    elif e.state == 1:                    # 鎖定玩家（畫面上會抖動提示）
         e.timer -= 1
         if e.timer <= 0:
             a = patterns.aim_angle(e.x, e.y, w.player)
             speed = 7.5 * w.bullet_speed
             e.vx, e.vy = math.cos(a) * speed, math.sin(a) * speed
             e.state = 2
-    else:                                 # dash
+    else:                                 # 衝刺
         e.x += e.vx
         e.y += e.vy
         if _offscreen(e):
@@ -141,13 +141,13 @@ def _meteor(e, w):
         e.alive = False
 
 
-# --- bosses -----------------------------------------------------------------
+# --- 魔王 -------------------------------------------------------------------
 TAU = 2 * math.pi
 ENTRY_Y = {"midboss": 120.0, "boss_warden": 130.0, "boss_carrier": 150.0, "boss_fang": 120.0}
 
 
 def _sway(e, center, amp, speed):
-    """Move sideways on a sine wave; keeps vx up to date for the agent."""
+    """用 sin 波左右移動；順便更新 vx，讓 agent 知道它往哪邊動。"""
     e.phase += speed
     new_x = center + amp * math.sin(e.phase)
     e.vx = new_x - e.x
@@ -155,9 +155,9 @@ def _sway(e, center, amp, speed):
 
 
 def _boss_phases(e, w):
-    """Entrance, phase changes and phase time-outs shared by all stage bosses.
+    """所有關卡魔王共用的部分：進場、換階段、階段時間到。
 
-    Returns False while the boss is still flying in (it doesn't shoot yet).
+    魔王還在進場（還不能開火）的時候回傳 False。
     """
     if e.state == 0:
         e.y += 1.5
@@ -172,7 +172,7 @@ def _boss_phases(e, w):
     if phase != e.phase_index:
         w.boss_phase_change(e, phase, False)
     elif e.phase_timer >= R.BOSS_PHASE_TIME:
-        if e.phase_index < 2:                       # time-out: skip to the next phase
+        if e.phase_index < 2:                       # 時間到：直接跳到下一個階段
             e.hp = int(math.floor(e.max_hp * R.PHASE_THRESHOLDS[e.phase_index]))
             w.boss_phase_change(e, e.phase_index + 1, True)
         else:
@@ -184,7 +184,7 @@ def _boss_phases(e, w):
 
 
 def _warden(e, w):
-    """Stage 1 boss: aimed fans -> double spiral -> dense rings."""
+    """第 1 關魔王：自機狙扇形 -> 雙螺旋 -> 密集環形彈。"""
     if not _boss_phases(e, w):
         return
     _sway(e, R.WIDTH / 2, 140, 0.012)
@@ -220,7 +220,7 @@ def _warden(e, w):
 
 
 def _carrier(e, w):
-    """Stage 2 boss: launches divers, then a 5-petal bloom, then laser rain."""
+    """第 2 關魔王：放出無人機 -> 五瓣花形彈 -> 雷射雨。"""
     if not _boss_phases(e, w):
         return
     _sway(e, R.WIDTH / 2, 100, 0.008)
@@ -264,13 +264,13 @@ def _carrier(e, w):
 
 
 def _fang(e, w):
-    """Stage 3 boss: twin-gun crossfire, counter-rotating pinwheel, then chases you."""
+    """第 3 關魔王：雙砲交叉火力 -> 反向旋轉風車彈 -> 追著玩家跑。"""
     if not _boss_phases(e, w):
         return
     bs, d = w.bullet_speed, w.difficulty
     if e.phase_index < 2:
         _sway(e, R.WIDTH / 2, 160, 0.02)
-    else:                                            # Fang Rush: follow the player
+    else:                                            # Fang Rush：跟著玩家的 x 座標移動
         e.vx = min(max(w.player.x - e.x, -3.0), 3.0)
         e.x += e.vx
     if e.phase_index == 0:
@@ -303,7 +303,7 @@ def _fang(e, w):
 
 
 def _midboss(e, w):
-    """Mid-stage guard: rings + aimed bursts; leaves if not killed in time."""
+    """中魔王：環形彈 + 自機狙；時間內沒打倒就會飛走。"""
     if e.state == 0:
         e.y += 2.0
         if e.y >= e.target_y:

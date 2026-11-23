@@ -1,6 +1,6 @@
-"""Training loop, evaluation and checkpoints for the DQN autopilot.
+"""DQN 自動駕駛的訓練迴圈、評估、存檔。
 
-Entry points: scripts/train_cpu.py and scripts/train_gpu.py.
+執行入口：scripts/train_cpu.py 和 scripts/train_gpu.py。
 """
 import argparse
 import json
@@ -18,10 +18,10 @@ from .features import N_ACTIONS, OBS_DIM
 
 DEFAULTS = OrderedDict([
     ("device", "cpu"),
-    ("total_steps", 3000000),      # agent decisions summed over all envs
+    ("total_steps", 3000000),      # 所有環境加起來的總決策數
     ("num_envs", 8),
-    ("workers", 0),                # >1: step envs in that many processes
-    ("max_episode_steps", 9000),   # 5 minutes of play
+    ("workers", 0),                # 大於 1：用這麼多個程序跑遊戲
+    ("max_episode_steps", 9000),   # 5 分鐘的遊戲時間
     ("hidden", 256),
     ("buffer_size", 300000),
     ("batch_size", 128),
@@ -29,9 +29,9 @@ DEFAULTS = OrderedDict([
     ("gamma", 0.99),
     ("n_step", 3),
     ("learning_starts", 20000),
-    ("train_every", 4),            # env decisions per training round
-    ("grad_steps", 1),             # gradient steps per training round
-    ("target_update", 2000),       # gradient steps between target-network syncs
+    ("train_every", 4),            # 每收集幾步資料訓練一次
+    ("grad_steps", 1),             # 每次訓練做幾次梯度更新
+    ("target_update", 2000),       # 每幾次梯度更新同步一次目標網路
     ("eps_start", 1.0),
     ("eps_end", 0.02),
     ("eps_decay_steps", 1000000),
@@ -40,14 +40,14 @@ DEFAULTS = OrderedDict([
     ("eval_episodes", 10),
     ("log_every", 25000),
     ("seed", 1),
-    ("threads", 0),                # torch CPU threads, 0 = library default
+    ("threads", 0),                # torch 用幾個 CPU 執行緒，0 = 預設
     ("save_path", str(MODELS_DIR / "dqn.pt")),
-    ("resume", ""),                # checkpoint to continue from (e.g. models/dqn_last.pt)
+    ("resume", ""),                # 要接著訓練的存檔（例如 models/dqn_last.pt）
 ])
 
 
 def build_arg_parser(description, overrides):
-    """CLI with every hyper-parameter as a flag; `overrides` sets the defaults."""
+    """每個超參數都變成命令列參數；`overrides` 用來改預設值。"""
     cfg = OrderedDict(DEFAULTS)
     cfg.update(overrides)
     ap = argparse.ArgumentParser(description=description,
@@ -55,7 +55,7 @@ def build_arg_parser(description, overrides):
     for key, value in cfg.items():
         ap.add_argument("--" + key.replace("_", "-"), type=type(value), default=value)
     ap.add_argument("--eval-only", action="store_true",
-                    help="evaluate the checkpoint at --save-path instead of training")
+                    help="不訓練，只評估 --save-path 的模型")
     return ap
 
 
@@ -65,7 +65,7 @@ def epsilon_at(cfg, step):
 
 
 # ---------------------------------------------------------------------------
-# Checkpoints
+# 存檔
 # ---------------------------------------------------------------------------
 def save_checkpoint(net, cfg, path, extra=None, optimizer=None):
     path = Path(path)
@@ -76,7 +76,7 @@ def save_checkpoint(net, cfg, path, extra=None, optimizer=None):
     if optimizer is not None:
         payload["optimizer"] = optimizer.state_dict()
     payload.update(extra or {})
-    tmp = path.with_name(path.name + ".tmp")        # write then rename: never a half file
+    tmp = path.with_name(path.name + ".tmp")        # 先寫暫存檔再改名：斷線也不會留下壞掉的檔案
     torch.save(payload, str(tmp))
     tmp.replace(path)
 
@@ -89,10 +89,10 @@ def load_network(path, device="cpu"):
 
 
 # ---------------------------------------------------------------------------
-# Evaluation
+# 評估
 # ---------------------------------------------------------------------------
 def evaluate(net, device, episodes=10, max_steps=9000, seed=100000):
-    """Greedy play on fixed seeds."""
+    """用固定的 seed、完全貪心地玩幾局。"""
     was_training = net.training
     net.eval()
     env = ShmupEnv(seed=0, max_steps=max_steps)
@@ -120,13 +120,13 @@ def evaluate(net, device, episodes=10, max_steps=9000, seed=100000):
 
 def run_eval_only(cfg):
     net, ckpt = load_network(cfg["save_path"], cfg["device"])
-    print("checkpoint step:", ckpt.get("step"))
+    print("模型訓練步數：", ckpt.get("step"))
     stats = evaluate(net, torch.device(cfg["device"]), 30, cfg["max_episode_steps"])
     print(json.dumps(stats, indent=2))
 
 
 # ---------------------------------------------------------------------------
-# Training
+# 訓練
 # ---------------------------------------------------------------------------
 def train(cfg):
     torch.manual_seed(cfg["seed"])
@@ -150,7 +150,7 @@ def train(cfg):
             optimizer.load_state_dict(ckpt["optimizer"])
         start_step = int(ckpt.get("step") or 0)
         best = float(ckpt.get("best", -1.0))
-        print("resumed from %s at step %d (replay buffer refills first)"
+        print("從 %s 的第 %d 步接著訓練（replay buffer 會先重新收集資料）"
               % (cfg["resume"], start_step))
 
     buffer = ReplayBuffer(cfg["buffer_size"], OBS_DIM, cfg["seed"])
@@ -181,7 +181,7 @@ def train(cfg):
 
     try:
         while step < cfg["total_steps"]:
-            # act: epsilon-greedy over the whole batch of envs
+            # 選動作：對所有環境一起做 epsilon-greedy
             eps = epsilon_at(cfg, step)
             with torch.no_grad():
                 actions = online(to_device(obs)).argmax(1).cpu().numpy()
@@ -201,7 +201,7 @@ def train(cfg):
             obs = next_obs
             prev_step, step = step, step + cfg["num_envs"]
 
-            # learn
+            # 學習
             if len(buffer) >= cfg["learning_starts"]:
                 rounds = step // cfg["train_every"] - prev_step // cfg["train_every"]
                 for _ in range(rounds * cfg["grad_steps"]):
@@ -217,7 +217,7 @@ def train(cfg):
                     if grad_steps % cfg["target_update"] == 0:
                         target.load_state_dict(online.state_dict())
 
-            # log, evaluate, save
+            # 印 log、評估、存檔
             if step >= next_log:
                 next_log += cfg["log_every"]
                 now = time.time()
@@ -236,17 +236,17 @@ def train(cfg):
                 if stats["survival"] > best:
                     best = stats["survival"]
                     save_checkpoint(online, cfg, save_path, {"step": step, "eval": stats})
-                    print("  new best -> %s" % save_path, flush=True)
+                    print("  新的最佳模型 -> %s" % save_path, flush=True)
                 save_checkpoint(online, cfg, last_path,
                                 {"step": step, "eval": stats, "best": best}, optimizer)
     except KeyboardInterrupt:
-        print("interrupted; saving %s" % last_path)
+        print("訓練被中斷，存檔到 %s" % last_path)
         save_checkpoint(online, cfg, last_path, {"step": step, "best": best}, optimizer)
     finally:
         envs.close()
     if best < 0:
         save_checkpoint(online, cfg, save_path, {"step": step})
-    print("done. Export for the browser with: python scripts/export_web.py")
+    print("訓練完成。匯出給網頁版：python scripts/export_web.py")
     return online
 
 

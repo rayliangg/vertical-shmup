@@ -1,4 +1,4 @@
-"""pygame front end: window, input, scenes (title / play / pause / game over)."""
+"""pygame 前端：視窗、輸入、場景（標題 / 遊戲中 / 暫停 / 遊戲結束）。"""
 import sys
 
 import pygame
@@ -24,14 +24,14 @@ TITLE, PLAYING, PAUSED, GAME_OVER = "title", "playing", "paused", "game_over"
 
 
 def load_policy(path):
-    """Load the DQN autopilot, or return None with a message."""
+    """載入 DQN 自動駕駛；載入失敗就印出原因並回傳 None。"""
     if not path.exists():
-        print("No model at %s - train one with scripts/train_cpu.py" % path, file=sys.stderr)
+        print("找不到模型 %s，請先用 scripts/train_cpu.py 訓練" % path, file=sys.stderr)
         return None
     try:
         from ..agent.policy import DQNPolicy
     except ImportError:
-        print("The autopilot needs PyTorch: pip install torch", file=sys.stderr)
+        print("自動駕駛需要 PyTorch：pip install torch", file=sys.stderr)
         return None
     return DQNPolicy.load(path)
 
@@ -59,7 +59,7 @@ class App:
         self.games = 0
         self.bomb_pressed = False
 
-    # -- persistence -------------------------------------------------------
+    # -- 最高分存檔 ---------------------------------------------------------
     @staticmethod
     def _load_highscore():
         try:
@@ -73,7 +73,7 @@ class App:
         except OSError:
             pass
 
-    # -- main loop -----------------------------------------------------------
+    # -- 主迴圈 -------------------------------------------------------------
     def run(self):
         self.audio.play_music()
         if self.scene == PLAYING:
@@ -163,7 +163,7 @@ class App:
                 self.highscore = w.score
                 self._save_highscore()
 
-    # -- drawing ---------------------------------------------------------------
+    # -- 畫面 -----------------------------------------------------------------
     def _draw(self):
         r = self.renderer
         if self.scene == TITLE:

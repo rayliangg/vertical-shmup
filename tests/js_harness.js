@@ -1,5 +1,5 @@
-// Runs the browser simulation under Node for tests/test_web_parity.py.
-// usage: node js_harness.js <web_dir> <seed> <frames> [model.js]
+// 在 Node 裡跑網頁版的模擬，給 tests/test_web_parity.py 用。
+// 用法：node js_harness.js <web 資料夾> <seed> <frame 數> [model.js]
 "use strict";
 var fs = require("fs"), path = require("path"), vm = require("vm");
 var web = process.argv[2], seed = Number(process.argv[3]), frames = Number(process.argv[4]);
@@ -19,7 +19,7 @@ var world = new S.World(seed), trace = [], policy = modelFile ? S.loadPolicy() :
 for (var f = 0; f < frames; f++) {
   var a = F.ACTIONS[Math.floor(f * 7 / 13) % F.ACTIONS.length];
   world.step(a[0], a[1], a[2], f % 997 === 500);
-  world.player.hp = 5;                         // keep it alive so later stages get tested
+  world.player.hp = 5;                         // 讓它不會死，後面的關卡才測得到
   if (f % 25 === 0) {
     var obs = Array.prototype.slice.call(F.observe(world));
     var row = { frame: world.frame, score: world.score, stage: world.stage,

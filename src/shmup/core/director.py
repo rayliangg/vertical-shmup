@@ -1,7 +1,7 @@
-"""Decides what spawns and when.
+"""決定什麼時候出什麼敵人。
 
-A stage: waves -> mid-boss (Sentinel) -> waves -> WARNING -> stage boss.
-Stage bosses rotate Warden -> Hive Carrier -> Twin Fang, getting tougher each loop.
+一關的流程：雜魚波次 -> 中魔王（Sentinel）-> 雜魚波次 -> WARNING -> 關卡魔王。
+關卡魔王輪流出現：Warden -> Hive Carrier -> Twin Fang，每輪一次會變更強。
 """
 import math
 
@@ -60,12 +60,12 @@ class Director:
         return e
 
     def boss_defeated(self):
-        """Stage boss killed or escaped: start the next stage."""
+        """關卡魔王被打倒或逃走：開始下一關。"""
         self.state = IDLE
         self.wave_timer = 150
         self.midboss_spawned = False
 
-    # -- waves ---------------------------------------------------------------
+    # -- 雜魚波次 ----------------------------------------------------------
     def spawn_wave(self, w):
         allow_gunship = w.stage > 1 or w.stage_frame > R.GUNSHIP_AFTER
         choices = tuple(p for p in R.WAVES if p[0] != "gunship" or allow_gunship)

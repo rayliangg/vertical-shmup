@@ -1,4 +1,4 @@
-"""Filesystem locations, resolved relative to the repository root."""
+"""所有檔案路徑，都是相對於專案根目錄。"""
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]

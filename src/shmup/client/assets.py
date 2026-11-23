@@ -1,4 +1,4 @@
-"""Image, font and sound loading with caching (pygame only)."""
+"""圖片、字型、音效的載入與快取（只有 pygame 版用）。"""
 import math
 
 import pygame
@@ -13,9 +13,9 @@ class Assets:
         self._fonts = {}
         self._sounds = {}
 
-    # -- images ------------------------------------------------------------
+    # -- 圖片 --------------------------------------------------------------
     def image(self, name):
-        """`name` is a path below assets/images, e.g. 'enemies/scout.png'."""
+        """`name` 是 assets/images 底下的路徑，例如 'enemies/scout.png'。"""
         surf = self._images.get(name)
         if surf is None:
             surf = pygame.image.load(str(IMAGES_DIR / name)).convert_alpha()
@@ -23,7 +23,7 @@ class Assets:
         return surf
 
     def sprite(self, name, width=None, angle=0, tint=None):
-        """Scaled (keeping aspect), rotated and/or tinted copy, cached."""
+        """回傳縮放（維持比例）、旋轉或加亮過的複製，並快取起來。"""
         key = (name, width, angle, tint)
         surf = self._variants.get(key)
         if surf is None:
@@ -40,7 +40,7 @@ class Assets:
         return surf
 
     def glow(self, radius, color, core=True):
-        """Soft round bullet sprite drawn procedurally."""
+        """用程式畫出來的圓形發光子彈。"""
         key = ("glow", radius, color, core)
         surf = self._variants.get(key)
         if surf is None:
@@ -58,7 +58,7 @@ class Assets:
             self._variants[key] = surf
         return surf
 
-    # -- fonts -------------------------------------------------------------
+    # -- 字型 --------------------------------------------------------------
     def font(self, size, thin=False):
         key = (size, thin)
         f = self._fonts.get(key)
@@ -67,9 +67,9 @@ class Assets:
             f = self._fonts[key] = pygame.font.Font(str(FONTS_DIR / name), size)
         return f
 
-    # -- sounds ------------------------------------------------------------
+    # -- 音效 --------------------------------------------------------------
     def sound(self, name, volume=0.5):
-        """`name` is a file in assets/sounds/sfx without extension. None if no audio."""
+        """`name` 是 assets/sounds/sfx 裡的檔名（不含副檔名）；沒有音效裝置就回傳 None。"""
         if not pygame.mixer.get_init():
             return None
         snd = self._sounds.get(name)

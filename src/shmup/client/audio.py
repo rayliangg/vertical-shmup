@@ -1,9 +1,9 @@
-"""Maps world events to sound effects and plays the music loop."""
+"""把遊戲事件對應到音效，並播放背景音樂。"""
 import pygame
 
 from ..paths import SOUNDS_DIR
 
-# event name -> (sound file, volume)
+# 事件名稱 -> (音效檔, 音量)
 EVENT_SOUNDS = {
     "explode": ("explosion", 0.35),
     "hurt": ("hurt", 0.6),
@@ -14,7 +14,7 @@ EVENT_SOUNDS = {
     "boss_down": ("stage_clear", 0.7),
     "gameover": ("game_over", 0.7),
 }
-SHOOT_EVERY = 3            # play the laser sound on every 3rd volley only
+SHOOT_EVERY = 3            # 每 3 次射擊才播一次雷射音效，不然太吵
 
 
 class Audio:

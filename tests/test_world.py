@@ -4,7 +4,7 @@ from shmup.core.entities import Bullet
 
 
 def run(world, frames, immortal=True):
-    """Weave left and right; returns the most enemy bullets seen on screen."""
+    """左右來回移動；回傳畫面上最多同時出現幾顆敵彈。"""
     most = 0
     for f in range(frames):
         world.step((f // 30) % 3 - 1, 0)
@@ -26,7 +26,7 @@ def test_enemies_shoot_and_boss_arrives():
     w = World(1)
     most = run(w, R.BOSS_TIME + R.BOSS_WARNING_FRAMES + 5)
     assert w.boss is not None
-    assert most > 20, "enemies should be firing"
+    assert most > 20, "敵人應該要開火"
 
 
 def test_bomb_clears_bullets_and_costs_one():
@@ -43,7 +43,7 @@ def test_hit_spends_auto_bomb_then_hp():
     p = w.player
     p.bombs = 1
     w.bullets = [Bullet(p.x, p.y, 0.0, 0.0)]
-    assert w.step() == 0 and p.bombs == 0          # auto-bomb absorbed it
+    assert w.step() == 0 and p.bombs == 0          # 自動炸彈擋掉了
     p.invuln = 0
     w.bullets = [Bullet(p.x, p.y, 0.0, 0.0)]
     assert w.step() == 1 and p.hp == R.PLAYER_MAX_HP - 1

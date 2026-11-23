@@ -1,4 +1,4 @@
-"""Player, projectiles and items. Pure data + movement, no drawing."""
+"""玩家、子彈、道具。只有資料和移動，不負責畫圖。"""
 import math
 
 from . import rules as R
@@ -17,7 +17,7 @@ class Player:
         self.shield = False
         self.invuln = 0
         self.fire_cooldown = 0
-        self.move_x = 0              # last horizontal input, used for banking
+        self.move_x = 0              # 最後一次的左右輸入，用來畫機身傾斜
         self.focus = False
 
     def move(self, dx, dy, focus):
@@ -30,7 +30,7 @@ class Player:
         self.focus = focus
 
     def shots(self):
-        """Shots for one volley at the current power level."""
+        """依目前火力等級，產生一次射擊的所有子彈。"""
         x, y, s = self.x, self.y - R.PLAYER_HALF_H, R.SHOT_SPEED
         p = self.power
         if p == 1:
@@ -45,7 +45,7 @@ class Player:
 
 
 class Shot:
-    """A player projectile."""
+    """玩家的子彈。"""
     __slots__ = ("x", "y", "vx", "vy", "alive")
 
     def __init__(self, x, y, vx, vy):
@@ -60,7 +60,7 @@ class Shot:
 
 
 class Bullet:
-    """An enemy projectile: a circle moving in a straight line."""
+    """敵人的子彈：一個走直線的圓。"""
     __slots__ = ("x", "y", "vx", "vy", "r", "kind", "grazed", "alive")
 
     def __init__(self, x, y, vx, vy, kind="orb"):

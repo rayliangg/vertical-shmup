@@ -1,6 +1,6 @@
-"""Gym-style environment around World, plus single- and multi-process vector envs.
+"""把 World 包成 Gym 風格的環境，另外提供單程序 / 多程序的向量環境。
 
-One agent decision = FRAME_SKIP game frames (30 decisions per second).
+agent 每做一次決策 = 遊戲前進 FRAME_SKIP 個 frame（每秒 30 次決策）。
 """
 import multiprocessing as mp
 
@@ -11,18 +11,18 @@ from .features import ACTIONS, N_ACTIONS, OBS_DIM, observe
 
 FRAME_SKIP = 2
 
-# Reward design: survive, avoid hits, collect items, a little for score.
+# 獎勵設計：活下來、不要被打、撿道具、分數只給一點點。
 REWARD_ALIVE = 0.01
 REWARD_HP_LOST = -1.0
-REWARD_BOMB_SPENT = -0.5        # an automatic bomb saved us, but it costs a resource
+REWARD_BOMB_SPENT = -0.5        # 自動炸彈救了一命，但用掉了資源
 REWARD_SHIELD_LOST = -0.3
 REWARD_PICKUP = 0.05
-REWARD_PER_SCORE = 0.0002       # 100 points -> +0.02
+REWARD_PER_SCORE = 0.0002       # 100 分 -> +0.02
 REWARD_DEATH = -1.0
 
 
 class ShmupEnv:
-    """reset() -> obs; step(action) -> obs, reward, terminated, truncated, info."""
+    """reset() -> obs；step(action) -> obs, reward, terminated, truncated, info。"""
 
     observation_size = OBS_DIM
     action_count = N_ACTIONS
@@ -74,8 +74,8 @@ class ShmupEnv:
 
 
 # ---------------------------------------------------------------------------
-# Vector envs. Both auto-reset: after an episode ends the returned obs is the
-# first obs of the next episode and the last real obs is info["final_obs"].
+# 向量環境。兩種都會自動 reset：回合結束後回傳的 obs 是下一局的第一個 obs，
+# 真正的最後一個 obs 放在 info["final_obs"]。
 # ---------------------------------------------------------------------------
 def _step_autoreset(env, action):
     obs, r, term, trunc, info = env.step(action)
@@ -124,7 +124,7 @@ def _worker(conn, seeds, max_steps):
 
 
 class SubprocVectorEnv:
-    """n envs spread over `workers` processes (the game logic is CPU-bound Python)."""
+    """把 n 個環境分散到 `workers` 個程序（遊戲邏輯是吃 CPU 的 Python）。"""
 
     def __init__(self, n, workers, seed=0, max_steps=9000):
         workers = max(1, min(workers, n))

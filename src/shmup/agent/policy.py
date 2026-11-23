@@ -1,4 +1,4 @@
-"""Greedy policy used by the pygame client to fly the ship."""
+"""pygame 版用來開飛機的貪心策略。"""
 import numpy as np
 import torch
 
@@ -22,5 +22,5 @@ class DQNPolicy:
             return self.net(x.unsqueeze(0))[0].numpy()
 
     def __call__(self, world):
-        """Return the greedy action index for the current world state."""
+        """回傳目前局面 Q 值最大的動作編號。"""
         return int(self.q_values(world).argmax())

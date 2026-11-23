@@ -1,6 +1,6 @@
-// Game simulation - a line-by-line port of src/shmup/core (world, entities,
-// enemies, patterns, director). Keep both in sync: tests/test_web_parity.py
-// runs the same seed in Python and in Node and compares the results.
+// 遊戲模擬：逐行對照 src/shmup/core 移植過來的（world、entities、
+// enemies、patterns、director）。兩邊要一起改：tests/test_web_parity.py
+// 會用同一個 seed 分別跑 Python 和 Node，比較結果是否一樣。
 (function (S) {
   "use strict";
   var R = S.RULES;
@@ -8,7 +8,7 @@
   var TAU = 2 * Math.PI;
   var ITEM_CHOICES = R.ITEM_WEIGHTS.map(function (w, i) { return [i, w]; });
 
-  // ---------------------------------------------------------------- entities
+  // ---------------------------------------------------------------- 玩家、子彈、道具
   function Player() {
     this.x = R.WIDTH / 2;
     this.y = R.PLAYER_START_Y;
@@ -93,7 +93,7 @@
     }
   };
 
-  // ---------------------------------------------------------------- patterns
+  // ---------------------------------------------------------------- 發射方式
   function aimAngle(x, y, t) { return Math.atan2(t.y - y, t.x - x); }
   function single(out, x, y, angle, speed, kind) {
     out.push(new Bullet(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed, kind));
@@ -108,7 +108,7 @@
     for (var i = 0; i < count; i++) single(out, x, y, (offset || 0) + step * i, speed, kind);
   }
 
-  // ---------------------------------------------------------------- enemies
+  // ---------------------------------------------------------------- 敵人
   function Enemy(kind, x, y, vx, vy, hp) {
     var spec = R.ENEMIES[kind];
     this.kind = kind;
@@ -224,7 +224,7 @@
     if (offscreen(e)) e.alive = false;
   }
 
-  // ---------------------------------------------------------------- bosses
+  // ---------------------------------------------------------------- 魔王
   var ENTRY_Y = { midboss: 120.0, boss_warden: 130.0, boss_carrier: 150.0, boss_fang: 120.0 };
 
   function sway(e, center, amp, speed) {
@@ -435,7 +435,7 @@
   };
   var SPLITS = { meteor_big: "meteor_medium", meteor_medium: "meteor_small" };
 
-  // ---------------------------------------------------------------- director
+  // ---------------------------------------------------------------- 出怪控制
   var IDLE = 0, WARNING = 1, BOSS_FIGHT = 2, MIDBOSS = 3;
 
   function Director() {
@@ -562,7 +562,7 @@
     }
   };
 
-  // ---------------------------------------------------------------- world
+  // ---------------------------------------------------------------- 整個世界
   function World(seed) {
     this.rng = new S.Rng(seed || 0);
     this.reset(seed || 0);
@@ -646,7 +646,7 @@
     for (var i = 0; i < this.shots.length; i++) {
       var s = this.shots[i];
       if (!s.alive) continue;
-      for (var j = 0; j < this.enemies.length; j++) {     // live length, like Python
+      for (var j = 0; j < this.enemies.length; j++) {     // 長度即時更新，跟 Python 的 for 迴圈行為一樣
         var e = this.enemies[j];
         if (!e.alive || !e.damageable()) continue;
         var dx = e.x - s.x, dy = e.y - s.y, rr = e.radius + R.SHOT_RADIUS;

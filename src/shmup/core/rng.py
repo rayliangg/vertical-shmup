@@ -1,7 +1,7 @@
-"""Tiny deterministic PRNG (Marsaglia's xorshift32, 2003).
+"""小型的可重現亂數產生器（Marsaglia 的 xorshift32，2003）。
 
-The game uses this instead of `random.Random` so the JavaScript port
-(web/js/rng.js) produces exactly the same numbers from the same seed.
+不用 `random.Random` 是為了讓 JavaScript 版（web/js/rng.js）
+在同一個 seed 下產生完全一樣的亂數。
 """
 import math
 
@@ -16,7 +16,7 @@ class Rng:
         self.seed(seed)
 
     def seed(self, seed):
-        s = (int(seed) * 2654435761 + 0x9E3779B9) & _MASK   # spread small seeds
+        s = (int(seed) * 2654435761 + 0x9E3779B9) & _MASK   # 讓很小的 seed 也能打散
         self.state = s or 0x6D2B79F5
 
     def next_u32(self):
@@ -28,21 +28,21 @@ class Rng:
         return x
 
     def random(self):
-        """Float in [0, 1)."""
+        """回傳 [0, 1) 之間的小數。"""
         return self.next_u32() * _SCALE
 
     def uniform(self, a, b):
         return a + (b - a) * self.random()
 
     def randint(self, a, b):
-        """Integer in [a, b], both inclusive."""
+        """回傳 [a, b] 之間的整數（包含 a 和 b）。"""
         return a + int(math.floor(self.random() * (b - a + 1)))
 
     def chance(self, p):
         return self.random() < p
 
     def weighted(self, pairs):
-        """Pick a key from ((key, weight), ...)."""
+        """從 ((key, 權重), ...) 依權重抽一個 key。"""
         total = 0
         for _, w in pairs:
             total += w

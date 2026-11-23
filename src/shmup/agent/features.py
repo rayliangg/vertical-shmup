@@ -1,20 +1,20 @@
-"""Turn a World into the fixed-size vector the Q-network reads.
+"""把 World 轉成 Q 網路要吃的固定長度向量。
 
-Mirrored exactly by web/js/features.js (tests/test_web_parity.py checks it).
+web/js/features.js 是逐行對應的版本（tests/test_web_parity.py 會檢查兩邊一樣）。
 
-Layout (OBS_DIM = 284 floats):
-    player      7   x, y, hp, bombs, power, shield, invulnerability
-    bullets   120   24 nearest enemy bullets x (dx, dy, vx, vy, radius)
-    enemies    64   8 nearest enemies x (dx, dy, vx, vy, radius, hp, is_boss, present)
-    danger     81   9x9 grid around the player: how soon a bullet will be there
-    items       8   2 nearest items x (dx, dy, kind, present)
-    boss        4   present, dx, dy, hp
+排列方式（OBS_DIM = 284 個數字）：
+    自機        7   x, y, HP, 炸彈, 火力, 護盾, 無敵時間
+    子彈      120   最近 24 顆敵彈 x (dx, dy, vx, vy, 半徑)
+    敵人       64   最近 8 個敵人 x (dx, dy, vx, vy, 半徑, HP, 是否魔王, 存在)
+    危險格     81   自機周圍 9x9 的格子：子彈多快會到那一格
+    道具        8   最近 2 個道具 x (dx, dy, 種類, 存在)
+    魔王        4   存在, dx, dy, HP
 """
 import math
 
 from ..core import rules as R
 
-# action index -> (dx, dy, focus)
+# 動作編號 -> (dx, dy, 是否慢速)
 _DIRS = ((0, 0), (-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (1, -1), (-1, 1), (1, 1))
 ACTIONS = tuple((dx, dy, focus) for focus in (False, True) for dx, dy in _DIRS)
 N_ACTIONS = len(ACTIONS)
@@ -24,7 +24,7 @@ N_ENEMIES = 8
 N_ITEMS = 2
 GRID = 9
 CELL = 28.0
-LOOKAHEAD = ((0, 1.0), (6, 0.75), (12, 0.5), (18, 0.25))   # (frames ahead, weight)
+LOOKAHEAD = ((0, 1.0), (6, 0.75), (12, 0.5), (18, 0.25))   # (往後預測幾個 frame, 權重)
 
 POS_X = 240.0
 POS_Y = 360.0
@@ -40,7 +40,7 @@ OBS_DIM = OFF_BOSS + 4
 
 
 def _nearest(things, px, py, k):
-    """k nearest by squared distance; ties broken by list index (stable in JS too)."""
+    """依距離平方取最近的 k 個；距離一樣時用 list 的順序決定（JS 那邊也一樣）。"""
     scored = []
     for i, t in enumerate(things):
         if t.alive:
@@ -51,7 +51,7 @@ def _nearest(things, px, py, k):
 
 
 def observe(world, out=None):
-    """Return a list of OBS_DIM floats (or fill `out`, any mutable sequence)."""
+    """回傳長度 OBS_DIM 的 list（或是直接填進 `out`）。"""
     o = [0.0] * OBS_DIM if out is None else out
     if out is not None:
         for i in range(OBS_DIM):
@@ -123,7 +123,7 @@ def _danger_grid(world, px, py, o):
             gx = int(math.floor((b.x + b.vx * t - px) / CELL + half))
             gy = int(math.floor((b.y + b.vy * t - py) / CELL + half))
             _mark(o, gx, gy, weight)
-    for e in world.enemies:                      # bodies: every cell they overlap now
+    for e in world.enemies:                      # 敵人本體：現在蓋到的每一格都算危險
         if not e.alive:
             continue
         r = e.radius * R.ENEMY_CONTACT_SCALE

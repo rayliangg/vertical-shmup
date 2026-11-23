@@ -1,4 +1,4 @@
-"""Bullet emission patterns shared by all enemies (classic danmaku building blocks)."""
+"""所有敵人共用的發射方式（彈幕遊戲最基本的幾種）。"""
 import math
 
 from .entities import Bullet
@@ -15,7 +15,7 @@ def single(out, x, y, angle, speed, kind="orb"):
 
 
 def fan(out, x, y, angle, speed, count, spread, kind="orb"):
-    """`count` bullets spread evenly over `spread` radians around `angle`."""
+    """以 `angle` 為中心，在 `spread` 弧度內平均射出 `count` 顆。"""
     if count == 1:
         single(out, x, y, angle, speed, kind)
         return
@@ -26,7 +26,7 @@ def fan(out, x, y, angle, speed, count, spread, kind="orb"):
 
 
 def ring(out, x, y, count, speed, offset=0.0, kind="orb"):
-    """`count` bullets in a full circle."""
+    """一整圈平均射出 `count` 顆。"""
     step = TAU / count
     for i in range(count):
         single(out, x, y, offset + step * i, speed, kind)

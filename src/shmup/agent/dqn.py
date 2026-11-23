@@ -1,12 +1,12 @@
-"""DQN building blocks, restricted to techniques published before 2019.
+"""DQN 的各個零件，只使用 2019 年以前發表的方法。
 
-* Deep Q-Network, experience replay, target network ... Mnih et al., Nature 2015
-* Double DQN target ................................. van Hasselt et al., AAAI 2016
-* Dueling value/advantage head ...................... Wang et al., ICML 2016
-* n-step returns .................................... Sutton 1988 (as in Rainbow, 2017)
-* Huber loss, Adam (2014), gradient-norm clipping
+* Deep Q-Network、經驗回放、目標網路 ......... Mnih et al., Nature 2015
+* Double DQN 目標 ............................ van Hasselt et al., AAAI 2016
+* Dueling（V / A 分開的輸出頭） .............. Wang et al., ICML 2016
+* n-step return .............................. Sutton 1988（Rainbow 2017 也有用）
+* Huber loss、Adam（2014）、梯度裁剪
 
-Only PyTorch 1.0-era API is used (no AMP, no torch.compile, no MPS).
+只用 PyTorch 1.0 時代就有的 API（沒有 AMP、torch.compile、MPS）。
 """
 import collections
 
@@ -16,7 +16,7 @@ import torch.nn as nn
 
 
 class DuelingQNetwork(nn.Module):
-    """MLP torso + dueling head: Q(s, a) = V(s) + A(s, a) - mean_a A(s, a)."""
+    """MLP 主幹 + dueling 輸出頭：Q(s, a) = V(s) + A(s, a) - mean_a A(s, a)。"""
 
     def __init__(self, obs_dim, n_actions, hidden=256):
         super(DuelingQNetwork, self).__init__()
@@ -36,7 +36,7 @@ class DuelingQNetwork(nn.Module):
         return self.value(h) + adv - adv.mean(dim=1, keepdim=True)
 
     def layers(self):
-        """Linear layers in evaluation order (used by the web exporter)."""
+        """依計算順序回傳各個 Linear 層（匯出網頁版時用）。"""
         return {
             "torso": [self.torso[0], self.torso[2]],
             "value": [self.value[0], self.value[2]],
@@ -45,7 +45,7 @@ class DuelingQNetwork(nn.Module):
 
 
 class ReplayBuffer:
-    """Preallocated ring buffer with uniform sampling."""
+    """事先配置好記憶體的環形 buffer，均勻隨機抽樣。"""
 
     def __init__(self, capacity, obs_dim, seed=0):
         self.capacity = capacity
@@ -53,7 +53,7 @@ class ReplayBuffer:
         self.next_obs = np.zeros((capacity, obs_dim), np.float32)
         self.actions = np.zeros(capacity, np.int64)
         self.rewards = np.zeros(capacity, np.float32)
-        self.discounts = np.zeros(capacity, np.float32)   # gamma^k, or 0 when terminal
+        self.discounts = np.zeros(capacity, np.float32)   # gamma^k；真正死亡時是 0
         self.index = 0
         self.size = 0
         self.rng = np.random.RandomState(seed)
@@ -78,7 +78,7 @@ class ReplayBuffer:
 
 
 class NStepWriter:
-    """Accumulates per-env 1-step transitions into n-step ones."""
+    """把每個環境的 1-step transition 累積成 n-step transition。"""
 
     def __init__(self, n_envs, n, gamma, buffer):
         self.n, self.gamma, self.buffer = n, gamma, buffer
@@ -103,7 +103,7 @@ class NStepWriter:
 
 
 def double_dqn_loss(online, target, batch):
-    """Huber loss against the Double-DQN n-step target."""
+    """對 Double DQN 的 n-step 目標算 Huber loss。"""
     obs, actions, rewards, next_obs, discounts = batch
     q = online(obs).gather(1, actions.unsqueeze(1)).squeeze(1)
     with torch.no_grad():

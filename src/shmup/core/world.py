@@ -1,24 +1,23 @@
-"""The whole game state and its fixed-timestep update. No pygame, no I/O.
+"""整個遊戲的狀態，以及固定時間步長的更新。不用 pygame，也不讀寫檔案。
 
-`World.events` lists what happened during the last frame as
-(name, x, y, value) tuples, consumed by the renderers (sound, particles)
-and by the RL environment (rewards):
+`World.events` 記錄上一個 frame 發生了什麼事，每一筆是 (名稱, x, y, 值)，
+畫面（音效、粒子特效）和 RL 環境（算獎勵）都會讀它：
 
-    shoot      player fired a volley                      value: power level
-    explode    enemy destroyed                            value: enemy kind
-    hit        enemy damaged but alive                    value: enemy kind
-    hurt       player lost 1 HP                           value: HP left
-    shield     shield absorbed a hit                      value: None
-    bomb       bomb went off                              value: True if automatic
-    cancel     enemy bullet erased (bomb / boss kill)     value: None
-    graze      bullet brushed past the player             value: None
-    pickup     item collected                             value: item kind
-    warning    stage boss incoming                        value: stage
-    boss       a boss finished its entrance               value: enemy kind
-    phase      a boss started a new attack phase          value: (kind, phase 0-2)
-    boss_down  stage boss destroyed, next stage begins    value: new stage
-    escape     stage boss outlasted its last phase        value: new stage
-    gameover   player has no HP left                      value: score
+    shoot      玩家射擊                          值：火力等級
+    explode    敵人被打倒                        值：敵人種類
+    hit        敵人被打到但還沒死                值：敵人種類
+    hurt       玩家掉 1 滴血                     值：剩下的 HP
+    shield     護盾擋掉一次攻擊                  值：None
+    bomb       炸彈爆炸                          值：是否為自動炸彈
+    cancel     敵彈被消掉（炸彈 / 打倒魔王）     值：None
+    graze      子彈擦過玩家身邊                  值：None
+    pickup     撿到道具                          值：道具種類
+    warning    關卡魔王快要出現                  值：關卡
+    boss       魔王進場完畢                      值：敵人種類
+    phase      魔王進入新的攻擊階段              值：(種類, 階段 0-2)
+    boss_down  關卡魔王被打倒，進入下一關        值：新的關卡
+    escape     關卡魔王撐過最後階段後逃走        值：新的關卡
+    gameover   玩家沒血了                        值：分數
 """
 from . import rules as R
 from .director import Director
@@ -39,8 +38,8 @@ class World:
             self.rng.seed(seed)
         self.player = Player()
         self.enemies = []
-        self.bullets = []            # enemy bullets
-        self.shots = []              # player shots
+        self.bullets = []            # 敵人的子彈
+        self.shots = []              # 玩家的子彈
         self.items = []
         self.director = Director()
         self.events = []
@@ -51,7 +50,7 @@ class World:
         self.graze = 0
         self.done = False
 
-    # -- derived values --------------------------------------------------
+    # -- 推算出來的數值 --------------------------------------------------
     @property
     def difficulty(self):
         progress = min(self.stage_frame / R.BOSS_TIME, 1.0)
@@ -63,7 +62,7 @@ class World:
 
     @property
     def boss(self):
-        """The mid-boss or stage boss currently on screen, if any."""
+        """畫面上的中魔王或關卡魔王，沒有的話回傳 None。"""
         for e in self.enemies:
             if e.is_boss and e.alive:
                 return e
@@ -72,9 +71,9 @@ class World:
     def emit(self, name, x, y, value=None):
         self.events.append((name, x, y, value))
 
-    # -- main update -------------------------------------------------------
+    # -- 每個 frame 的更新 ------------------------------------------------
     def step(self, dx=0, dy=0, focus=False, bomb=False):
-        """Advance one frame. dx, dy in {-1, 0, 1}. Returns HP lost this frame."""
+        """前進一個 frame。dx, dy 是 -1、0、1。回傳這個 frame 掉了幾滴血。"""
         if self.done:
             return 0
         self.events = []
@@ -116,7 +115,7 @@ class World:
             self.emit("gameover", p.x, p.y, self.score)
         return lost
 
-    # -- combat ------------------------------------------------------------
+    # -- 戰鬥 --------------------------------------------------------------
     def _shots_vs_enemies(self):
         for s in self.shots:
             if not s.alive:
@@ -160,7 +159,7 @@ class World:
                 self.enemies.append(Enemy(child, e.x + side * 10, e.y,
                                           side * 1.2 + e.vx * 0.5, e.vy))
 
-    # -- bosses ------------------------------------------------------------
+    # -- 魔王 --------------------------------------------------------------
     def boss_phase_change(self, e, phase, timed_out):
         e.phase_index = phase
         e.phase_timer = 0
@@ -213,7 +212,7 @@ class World:
         return lost
 
     def _hit_player(self):
-        """Resolve one hit. Returns HP actually lost (0 or 1)."""
+        """處理一次被打中。回傳實際掉的血（0 或 1）。"""
         p = self.player
         if p.invuln > 0:
             return 0

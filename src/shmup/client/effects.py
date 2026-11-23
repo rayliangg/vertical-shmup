@@ -1,7 +1,6 @@
-"""Purely cosmetic effects: starfield, particles, shockwaves, score pop-ups.
+"""純視覺效果：星空、粒子、衝擊波、分數跳字。
 
-Uses its own `random.Random`, never the game RNG, so effects can't change
-the simulation.
+用自己的 `random.Random`，不會動到遊戲的亂數，所以特效不會影響遊戲結果。
 """
 import math
 import random
@@ -11,9 +10,22 @@ import pygame
 from ..core import rules as R
 
 
+def faded(surf, alpha):
+    """回傳半透明的複製。
+
+    pygame 1.9 對有 per-pixel alpha 的圖片用 set_alpha() 沒有效果，
+    所以用 BLEND_RGBA_MULT 直接把每個像素的 alpha 乘上去，1.9 和 2.x 都能用。
+    """
+    if alpha >= 255:
+        return surf
+    out = surf.copy()
+    out.fill((255, 255, 255, max(0, int(alpha))), special_flags=pygame.BLEND_RGBA_MULT)
+    return out
+
+
 class Starfield:
-    """Two layers of drifting stars over a tiled, scrolling background."""
-    LAYERS = ((60, 1.2, 1, 120), (35, 2.6, 2, 200))     # (count, speed, size, alpha)
+    """捲動的背景圖 + 兩層移動速度不同的星星。"""
+    LAYERS = ((60, 1.2, 1, 120), (35, 2.6, 2, 200))     # (數量, 速度, 大小, 亮度)
 
     def __init__(self, rng):
         self.stars = []
@@ -57,7 +69,7 @@ class Effects:
         self.rings = []          # [x, y, radius, speed, life, max_life, color, width]
         self.popups = []         # [surface, x, y, life]
         self.shake = 0.0
-        self.flash = 0           # full-screen white flash frames
+        self.flash = 0           # 全螢幕白光還剩幾個 frame
         self.starfield = Starfield(self.rng)
 
     def clear(self):
@@ -67,7 +79,7 @@ class Effects:
         self.shake = 0.0
         self.flash = 0
 
-    # -- emitters ------------------------------------------------------------
+    # -- 產生特效 ----------------------------------------------------------
     def sparks(self, x, y, color, count=8, speed=4.0, life=18, size=3, drag=0.9):
         r = self.rng
         for _ in range(count):
@@ -94,7 +106,7 @@ class Effects:
     def popup(self, surface, x, y):
         self.popups.append([surface, x, y, 50])
 
-    # -- update / draw ------------------------------------------------------
+    # -- 更新 / 繪製 -------------------------------------------------------
     def update(self):
         alive = []
         for p in self.particles:
@@ -134,7 +146,7 @@ class Effects:
             c = tuple(int(v * k) for v in color)
             pygame.draw.circle(surf, c, (int(x), int(y)), int(radius), max(1, int(width * k)))
         for img, x, y, life in self.popups:
-            img.set_alpha(min(255, life * 8))
+            img = faded(img, min(255, life * 8))
             surf.blit(img, img.get_rect(center=(int(x), int(y))))
 
     def offset(self):

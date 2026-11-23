@@ -1,12 +1,12 @@
-"""Train the DQN autopilot on the CPU.
+"""用 CPU 訓練 DQN 自動駕駛（不需要任何畫面）。
 
-    python scripts/train_cpu.py                        # 3M decisions -> models/dqn.pt
-    python scripts/train_cpu.py --total-steps 500000   # quick, weaker agent
-    python scripts/train_cpu.py --workers 4            # step games in 4 processes
-    python scripts/train_cpu.py --eval-only            # score models/dqn.pt
-    python scripts/train_cpu.py --help                 # every hyper-parameter
+    python scripts/train_cpu.py                        # 300 萬步 -> models/dqn.pt
+    python scripts/train_cpu.py --total-steps 500000   # 快速試跑，agent 比較弱
+    python scripts/train_cpu.py --workers 4            # 用 4 個程序跑遊戲
+    python scripts/train_cpu.py --eval-only            # 評估 models/dqn.pt
+    python scripts/train_cpu.py --help                 # 列出所有超參數
 
-CPU profile: 8 games, 256-unit MLP, batch 128, one gradient step every 4 decisions.
+CPU 設定：同時 8 局、256 單元的 MLP、batch 128、每 4 步做一次梯度更新。
 """
 import multiprocessing
 import os
