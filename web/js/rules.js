@@ -4,9 +4,21 @@
     "AUTO_BOMB": true,
     "BOMB_DAMAGE": 12,
     "BOMB_INVULN_FRAMES": 60,
-    "BOSS_HP_PER_STAGE": 0.35,
+    "BOSS_HP_PER_STAGE": 0.3,
     "BOSS_ITEM_DROPS": 8,
-    "BOSS_TIME": 3600,
+    "BOSS_NAMES": {
+      "boss_carrier": "HIVE CARRIER",
+      "boss_fang": "TWIN FANG",
+      "boss_warden": "WARDEN",
+      "midboss": "SENTINEL"
+    },
+    "BOSS_ORDER": [
+      "boss_warden",
+      "boss_carrier",
+      "boss_fang"
+    ],
+    "BOSS_PHASE_TIME": 1800,
+    "BOSS_TIME": 4200,
     "BOSS_WARNING_FRAMES": 150,
     "BULLET_CANCEL_SCORE": 10,
     "BULLET_MARGIN": 24.0,
@@ -21,7 +33,22 @@
     "DIFFICULTY_IN_STAGE": 0.35,
     "DIFFICULTY_PER_STAGE": 0.25,
     "ENEMIES": {
-      "boss": {
+      "boss_carrier": {
+        "boss": true,
+        "drop": 1.0,
+        "hp": 420,
+        "radius": 46.0,
+        "score": 12000
+      },
+      "boss_fang": {
+        "boss": true,
+        "drop": 1.0,
+        "hp": 400,
+        "radius": 44.0,
+        "score": 15000
+      },
+      "boss_warden": {
+        "boss": true,
         "drop": 1.0,
         "hp": 360,
         "radius": 50.0,
@@ -56,6 +83,13 @@
         "hp": 1,
         "radius": 9.0,
         "score": 10
+      },
+      "midboss": {
+        "boss": true,
+        "drop": 1.0,
+        "hp": 120,
+        "radius": 32.0,
+        "score": 3000
       },
       "scout": {
         "drop": 0.12,
@@ -102,6 +136,37 @@
       10,
       8,
       38
+    ],
+    "MAX_DRONES": 6,
+    "MIDBOSS_ESCAPE": 1500,
+    "MIDBOSS_ITEM_DROPS": 3,
+    "MIDBOSS_TIME": 1500,
+    "PHASE_BONUS": 1000,
+    "PHASE_NAMES": {
+      "boss_carrier": [
+        "Drone Bay",
+        "Bloom",
+        "Laser Rain"
+      ],
+      "boss_fang": [
+        "Crossfire",
+        "Pinwheel",
+        "Fang Rush"
+      ],
+      "boss_warden": [
+        "Aimed Fans",
+        "Twin Spiral",
+        "Last Stand"
+      ],
+      "midboss": [
+        "Ring Guard",
+        "Ring Guard",
+        "Ring Guard"
+      ]
+    },
+    "PHASE_THRESHOLDS": [
+      0.66,
+      0.33
     ],
     "PLAYER_FOCUS_SPEED": 2.0,
     "PLAYER_GRAZE_RADIUS": 20.0,

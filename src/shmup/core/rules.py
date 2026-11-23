@@ -71,16 +71,45 @@ ENEMIES = {
     "meteor_big": {"hp": 6, "radius": 30.0, "score": 50, "drop": 0.08},
     "meteor_medium": {"hp": 3, "radius": 15.0, "score": 30, "drop": 0.05},
     "meteor_small": {"hp": 1, "radius": 9.0, "score": 10, "drop": 0.0},
-    "boss": {"hp": 360, "radius": 50.0, "score": 10000, "drop": 1.0},
+    # bosses ("boss": True shows the HP bar and pauses the waves)
+    "midboss": {"hp": 120, "radius": 32.0, "score": 3000, "drop": 1.0, "boss": True},
+    "boss_warden": {"hp": 360, "radius": 50.0, "score": 10000, "drop": 1.0, "boss": True},
+    "boss_carrier": {"hp": 420, "radius": 46.0, "score": 12000, "drop": 1.0, "boss": True},
+    "boss_fang": {"hp": 400, "radius": 44.0, "score": 15000, "drop": 1.0, "boss": True},
 }
-BOSS_HP_PER_STAGE = 0.35            # +35% boss HP each stage
+BOSS_HP_PER_STAGE = 0.30            # +30% boss HP for every stage after the first
 BOSS_ITEM_DROPS = 8
+MIDBOSS_ITEM_DROPS = 3
+
+# --- Boss stages -----------------------------------------------------------
+# Each stage: waves -> mid-boss -> waves -> WARNING -> stage boss (3 phases).
+# The stage boss cycles Warden -> Carrier -> Fang -> Warden (harder) -> ...
+BOSS_ORDER = ("boss_warden", "boss_carrier", "boss_fang")
+BOSS_NAMES = {
+    "midboss": "SENTINEL",
+    "boss_warden": "WARDEN",
+    "boss_carrier": "HIVE CARRIER",
+    "boss_fang": "TWIN FANG",
+}
+# Phase names shown as a banner, like "spell cards" in danmaku games.
+PHASE_NAMES = {
+    "midboss": ("Ring Guard", "Ring Guard", "Ring Guard"),
+    "boss_warden": ("Aimed Fans", "Twin Spiral", "Last Stand"),
+    "boss_carrier": ("Drone Bay", "Bloom", "Laser Rain"),
+    "boss_fang": ("Crossfire", "Pinwheel", "Fang Rush"),
+}
+PHASE_THRESHOLDS = (0.66, 0.33)     # HP fraction where phase 2 and phase 3 start
+BOSS_PHASE_TIME = 1800              # survive 30 s and the phase times out (no bonus)
+PHASE_BONUS = 1000                  # score for breaking a phase before the timeout
+MIDBOSS_TIME = 1500                 # frames into a stage when the mid-boss appears
+MIDBOSS_ESCAPE = 1500               # mid-boss leaves after this many frames
+MAX_DRONES = 6                      # Hive Carrier's launched divers on screen
 ENEMY_CONTACT_SCALE = 0.8           # enemy bodies are a bit smaller than they look
 
 # --- Director (wave spawning) --------------------------------------------
 WAVE_INTERVAL_START = 150
 WAVE_INTERVAL_MIN = 55
-BOSS_TIME = 3600                    # frames into a stage before the boss warning
+BOSS_TIME = 4200                    # frames into a stage before the boss warning
 BOSS_WARNING_FRAMES = 150
 DIFFICULTY_PER_STAGE = 0.25
 DIFFICULTY_IN_STAGE = 0.35          # extra difficulty reached right before the boss

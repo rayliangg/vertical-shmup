@@ -11,7 +11,9 @@ BACKGROUNDS = ("dark_purple.png", "blue.png", "purple.png", "black.png")
 ENEMY_SPRITES = {
     "scout": "enemies/scout.png", "weaver": "enemies/weaver.png",
     "diver": "enemies/diver.png", "gunship": "enemies/gunship.png",
-    "boss": "enemies/boss.png", "meteor_big": "enemies/meteor_big.png",
+    "midboss": "enemies/midboss.png", "boss_warden": "enemies/boss_warden.png",
+    "boss_carrier": "enemies/boss_carrier.png", "boss_fang": "enemies/boss_fang.png",
+    "meteor_big": "enemies/meteor_big.png",
     "meteor_medium": "enemies/meteor_medium.png", "meteor_small": "enemies/meteor_small.png",
 }
 ENEMY_WIDTH_SCALE = 2.7        # sprite width = radius * this
@@ -34,6 +36,7 @@ class Renderer:
         self.bank = 0.0
         self.tick = 0
         self.banner = None              # (text, frames_left, color)
+        self.subtitle = None            # (boss phase name, frames_left)
         self.show_agent_view = False
         self._text_cache = {}
 
@@ -59,15 +62,16 @@ class Renderer:
     # -- events -> effects ---------------------------------------------------
     def reset(self):
         self.fx.clear()
+        self.subtitle = None
         self.banner = ("STAGE 1", 120, YELLOW)
 
     def handle_events(self, events):
         fx = self.fx
         for name, x, y, value in events:
             if name == "explode":
-                big = value in ("boss", "gunship", "meteor_big")
-                fx.explosion(x, y, big=value == "boss")
-                if big and value != "boss":
+                is_boss = R.ENEMIES[value].get("boss", False)
+                fx.explosion(x, y, big=is_boss)
+                if value in ("gunship", "meteor_big"):
                     fx.shake = max(fx.shake, 5.0)
             elif name == "hit":
                 fx.sparks(x, y, (255, 255, 200), 3, 3.0, 10, 2)
@@ -92,8 +96,19 @@ class Renderer:
                 fx.popup(self.text_surface(ITEM_LABELS[value], 12, ITEM_COLORS[value]), x, y - 16)
             elif name == "warning":
                 self.banner = ("WARNING", R.BOSS_WARNING_FRAMES, (255, 60, 60))
+            elif name == "boss":
+                self.banner = (R.BOSS_NAMES[value], 100, (255, 120, 120))
+            elif name == "phase":
+                kind, phase = value
+                if kind != "midboss":
+                    self.subtitle = ("PHASE %d  %s" % (phase + 1, R.PHASE_NAMES[kind][phase].upper()),
+                                     150)
             elif name == "boss_down":
                 self.banner = ("STAGE %d" % value, 150, YELLOW)
+                self.subtitle = None
+            elif name == "escape":
+                self.banner = ("BOSS ESCAPED", 120, (200, 200, 255))
+                self.subtitle = None
 
     # -- frame -----------------------------------------------------------------
     def draw(self, world, overlay=None):
@@ -208,6 +223,18 @@ class Renderer:
             self.text("Q %.2f%s" % (max(q_values), "  FOCUS" if focus else ""), 12,
                       (int(p.x), int(p.y) + 40), (80, 255, 120))
 
+    def _draw_boss_bar(self, boss):
+        scr, x, y, w = self.screen, 40, 80, R.WIDTH - 80
+        self.text(R.BOSS_NAMES[boss.kind], 11, (x, y - 16), (255, 150, 150), "topleft")
+        pygame.draw.rect(scr, (60, 20, 30), (x, y, w, 8))
+        pygame.draw.rect(scr, (255, 70, 90), (x, y, int(w * boss.hp / boss.max_hp), 8))
+        pygame.draw.rect(scr, WHITE, (x, y, w, 8), 1)
+        if boss.kind != "midboss":
+            for t in R.PHASE_THRESHOLDS:                   # phase dividers
+                pygame.draw.line(scr, WHITE, (x + int(w * t), y - 2), (x + int(w * t), y + 9))
+            left = max(0, R.BOSS_PHASE_TIME - boss.phase_timer) // R.FPS
+            self.text("%02d" % left, 11, (x + w, y - 16), (255, 230, 150), "topright")
+
     # -- HUD ------------------------------------------------------------------
     def _draw_hud(self, world):
         p = world.player
@@ -227,10 +254,11 @@ class Renderer:
                   thin=True)
         boss = world.boss
         if boss is not None and boss.state > 0:
-            w = R.WIDTH - 80
-            pygame.draw.rect(scr, (60, 20, 30), (40, 76, w, 8))
-            pygame.draw.rect(scr, (255, 70, 90), (40, 76, int(w * boss.hp / boss.max_hp), 8))
-            pygame.draw.rect(scr, WHITE, (40, 76, w, 8), 1)
+            self._draw_boss_bar(boss)
+        if self.subtitle:
+            text, left = self.subtitle
+            self.text(text, 14, (R.WIDTH // 2, 110), (255, 200, 120))
+            self.subtitle = (text, left - 1) if left > 1 else None
         if self.banner:
             text, left, color = self.banner
             if (left // 12) % 2 == 0 or text != "WARNING":

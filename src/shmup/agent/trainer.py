@@ -42,6 +42,7 @@ DEFAULTS = OrderedDict([
     ("seed", 1),
     ("threads", 0),                # torch CPU threads, 0 = library default
     ("save_path", str(MODELS_DIR / "dqn.pt")),
+    ("resume", ""),                # checkpoint to continue from (e.g. models/dqn_last.pt)
 ])
 
 
@@ -66,14 +67,18 @@ def epsilon_at(cfg, step):
 # ---------------------------------------------------------------------------
 # Checkpoints
 # ---------------------------------------------------------------------------
-def save_checkpoint(net, cfg, path, extra=None):
+def save_checkpoint(net, cfg, path, extra=None, optimizer=None):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     state = OrderedDict((k, v.detach().cpu()) for k, v in net.state_dict().items())
     payload = {"model": state, "obs_dim": net.obs_dim, "n_actions": net.n_actions,
                "hidden": net.hidden, "config": dict(cfg)}
+    if optimizer is not None:
+        payload["optimizer"] = optimizer.state_dict()
     payload.update(extra or {})
-    torch.save(payload, str(path))
+    tmp = path.with_name(path.name + ".tmp")        # write then rename: never a half file
+    torch.save(payload, str(tmp))
+    tmp.replace(path)
 
 
 def load_network(path, device="cpu"):
@@ -136,6 +141,17 @@ def train(cfg):
     target.load_state_dict(online.state_dict())
     target.eval()
     optimizer = torch.optim.Adam(online.parameters(), lr=cfg["lr"], eps=1.5e-4)
+    start_step, best = 0, -1.0
+    if cfg["resume"]:
+        ckpt = torch.load(cfg["resume"], map_location=device)
+        online.load_state_dict(ckpt["model"])
+        target.load_state_dict(ckpt["model"])
+        if "optimizer" in ckpt:
+            optimizer.load_state_dict(ckpt["optimizer"])
+        start_step = int(ckpt.get("step") or 0)
+        best = float(ckpt.get("best", -1.0))
+        print("resumed from %s at step %d (replay buffer refills first)"
+              % (cfg["resume"], start_step))
 
     buffer = ReplayBuffer(cfg["buffer_size"], OBS_DIM, cfg["seed"])
     writer = NStepWriter(cfg["num_envs"], cfg["n_step"], cfg["gamma"], buffer)
@@ -154,12 +170,12 @@ def train(cfg):
         return t.to(device)
 
     obs = envs.reset()
-    step = grad_steps = 0
+    step, grad_steps = start_step, 0
     returns = np.zeros(cfg["num_envs"])
     recent_returns, recent_lengths, losses = [], [], []
-    best = -1.0
     start = last_log_time = time.time()
-    next_log, next_eval = cfg["log_every"], cfg["eval_every"]
+    next_log = (step // cfg["log_every"] + 1) * cfg["log_every"]
+    next_eval = (step // cfg["eval_every"] + 1) * cfg["eval_every"]
     save_path = Path(cfg["save_path"])
     last_path = save_path.with_name(save_path.stem + "_last" + save_path.suffix)
 
@@ -217,14 +233,15 @@ def train(cfg):
                 print("  eval: survival %.0f  full %d/%d  hp_lost/min %.2f  score %.0f  stage %.2f"
                       % (stats["survival"], stats["full_runs"], cfg["eval_episodes"],
                          stats["hp_lost_per_min"], stats["score"], stats["stage"]), flush=True)
-                save_checkpoint(online, cfg, last_path, {"step": step, "eval": stats})
                 if stats["survival"] > best:
                     best = stats["survival"]
                     save_checkpoint(online, cfg, save_path, {"step": step, "eval": stats})
                     print("  new best -> %s" % save_path, flush=True)
+                save_checkpoint(online, cfg, last_path,
+                                {"step": step, "eval": stats, "best": best}, optimizer)
     except KeyboardInterrupt:
         print("interrupted; saving %s" % last_path)
-        save_checkpoint(online, cfg, last_path, {"step": step})
+        save_checkpoint(online, cfg, last_path, {"step": step, "best": best}, optimizer)
     finally:
         envs.close()
     if best < 0:

@@ -99,7 +99,7 @@
       o[j + 3] = e.vy / VEL;
       o[j + 4] = e.radius / 50.0;
       o[j + 5] = e.hp / e.maxHp;
-      o[j + 6] = e.kind === "boss" ? 1.0 : 0.0;
+      o[j + 6] = e.isBoss ? 1.0 : 0.0;
       o[j + 7] = 1.0;
     }
 

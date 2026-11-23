@@ -13,7 +13,7 @@ from shmup.paths import ROOT, WEB_DIR
 
 NODE = shutil.which("node")
 HARNESS = ROOT / "tests" / "js_harness.js"
-FRAMES = 15000                 # long enough to beat the first boss
+FRAMES = 30000                 # long enough to see all three stage bosses
 
 
 def python_trace(seed, frames, net=None):

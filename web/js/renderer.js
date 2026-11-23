@@ -6,7 +6,9 @@
   var IMAGES = {
     ship: "player/ship.png", life: "ui/life.png",
     scout: "enemies/scout.png", weaver: "enemies/weaver.png", diver: "enemies/diver.png",
-    gunship: "enemies/gunship.png", boss: "enemies/boss.png",
+    gunship: "enemies/gunship.png", midboss: "enemies/midboss.png",
+    boss_warden: "enemies/boss_warden.png", boss_carrier: "enemies/boss_carrier.png",
+    boss_fang: "enemies/boss_fang.png",
     meteor_big: "enemies/meteor_big.png", meteor_medium: "enemies/meteor_medium.png",
     meteor_small: "enemies/meteor_small.png",
     laser: "projectiles/player_laser.png", laser_max: "projectiles/player_laser_max.png",
@@ -38,6 +40,7 @@
     this.tick = 0;
     this.scroll = 0;
     this.banner = null;
+    this.subtitle = null;
     this.showAgentView = false;
     this.stars = [];
     for (var i = 0; i < 95; i++) {
@@ -101,6 +104,7 @@
   Renderer.prototype.reset = function () {
     this.particles = []; this.rings = []; this.popups = [];
     this.shake = 0; this.flash = 0;
+    this.subtitle = null;
     this.banner = { text: "STAGE 1", left: 120, color: "#ffe65a" };
   };
 
@@ -108,7 +112,7 @@
     for (var i = 0; i < events.length; i++) {
       var ev = events[i], name = ev[0], x = ev[1], y = ev[2], v = ev[3];
       if (name === "explode") {
-        this.explosion(x, y, v === "boss");
+        this.explosion(x, y, R.ENEMIES[v].boss === true);
         if (v === "gunship" || v === "meteor_big") this.shake = Math.max(this.shake, 5);
       } else if (name === "hit") {
         this.sparks(x, y, "255,255,200", 3, 3, 10, 2);
@@ -133,8 +137,19 @@
         this.popups.push({ text: ITEM_LABELS[v], color: ITEM_COLORS[v], x: x, y: y - 16, life: 50 });
       } else if (name === "warning") {
         this.banner = { text: "WARNING", left: R.BOSS_WARNING_FRAMES, color: "#ff3c3c" };
+      } else if (name === "boss") {
+        this.banner = { text: R.BOSS_NAMES[v], left: 100, color: "#ff7878" };
+      } else if (name === "phase") {
+        if (v[0] !== "midboss") {
+          this.subtitle = { text: "PHASE " + (v[1] + 1) + "  " + R.PHASE_NAMES[v[0]][v[1]].toUpperCase(),
+                            left: 150 };
+        }
       } else if (name === "boss_down") {
         this.banner = { text: "STAGE " + v, left: 150, color: "#ffe65a" };
+        this.subtitle = null;
+      } else if (name === "escape") {
+        this.banner = { text: "BOSS ESCAPED", left: 120, color: "#c8c8ff" };
+        this.subtitle = null;
       }
     }
   };
@@ -339,6 +354,21 @@
     }
   };
 
+  Renderer.prototype.drawBossBar = function (boss) {
+    var ctx = this.ctx, x = 40, y = 80, w = R.WIDTH - 80;
+    this.text(R.BOSS_NAMES[boss.kind], 11, x, y - 16, "#ff9696", "left");
+    ctx.fillStyle = "#3c141e"; ctx.fillRect(x, y, w, 8);
+    ctx.fillStyle = "#ff465a"; ctx.fillRect(x, y, w * boss.hp / boss.maxHp, 8);
+    ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.strokeRect(x + 0.5, y + 0.5, w, 8);
+    if (boss.kind !== "midboss") {
+      R.PHASE_THRESHOLDS.forEach(function (t) {
+        ctx.beginPath(); ctx.moveTo(x + w * t, y - 2); ctx.lineTo(x + w * t, y + 10); ctx.stroke();
+      });
+      var left = Math.floor(Math.max(0, R.BOSS_PHASE_TIME - boss.phaseTimer) / R.FPS);
+      this.text(("0" + left).slice(-2), 11, x + w, y - 16, "#ffe696", "right");
+    }
+  };
+
   Renderer.prototype.drawHud = function (world) {
     var ctx = this.ctx, p = world.player, i;
     this.text(("00000000" + world.score).slice(-8), 20, R.WIDTH / 2, 8);
@@ -351,11 +381,10 @@
     this.text("STAGE " + world.stage, 12, R.WIDTH - 8, 10, "#b4c8ff", "right");
     this.text("GRAZE " + world.graze, 12, R.WIDTH - 8, 28, "#b4c8ff", "right");
     var boss = world.boss();
-    if (boss && boss.state > 0) {
-      var w = R.WIDTH - 80;
-      ctx.fillStyle = "#3c141e"; ctx.fillRect(40, 76, w, 8);
-      ctx.fillStyle = "#ff465a"; ctx.fillRect(40, 76, w * boss.hp / boss.maxHp, 8);
-      ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.strokeRect(40.5, 76.5, w, 8);
+    if (boss && boss.state > 0) this.drawBossBar(boss);
+    if (this.subtitle) {
+      this.text(this.subtitle.text, 14, R.WIDTH / 2, 110, "#ffc878");
+      if (--this.subtitle.left <= 0) this.subtitle = null;
     }
     if (this.banner) {
       var b = this.banner;

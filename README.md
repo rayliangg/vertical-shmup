@@ -10,9 +10,11 @@
 ## 快速開始
 
 ```bash
-pip install -e .            # 安裝遊戲（pygame、numpy）
-pip install -e ".[rl]"      # 另外安裝 PyTorch，訓練 / 自動駕駛需要
+pip install -e ".[game]"       # 玩遊戲：numpy + pygame
+pip install -e ".[game,rl]"    # 再加 PyTorch：自動駕駛 / 訓練
 ```
+
+訓練完全不需要畫面：`core/` 和 `agent/` 不會 import pygame，Colab 上連 pip install 都不用。
 
 ```bash
 python -m shmup                 # 自己玩
@@ -41,7 +43,22 @@ python -m shmup --autopilot     # 看 DQN 自己玩（需要先訓練）
   - 炸彈清除全畫面子彈；被打中時若還有炸彈會**自動放炸彈**抵銷
   - 被打後有無敵時間、火力降一級
   - 飛到畫面上方「收點線」時，所有道具自動吸過來
-- **關卡**：每關約 60 秒雜兵波次，接著 WARNING → Boss；打倒 Boss 進下一關，難度提升
+- **魔王關卡**：每關的節奏是
+
+  ```
+  雜魚波次 → 中魔王 SENTINEL（25 秒）→ 雜魚波次 → WARNING → 關卡魔王（3 階段）→ 下一關
+  ```
+
+  | 關卡 | 魔王 | 階段 1 | 階段 2 | 階段 3 |
+  |------|------|--------|--------|--------|
+  | 1, 4, 7… | WARDEN | Aimed Fans | Twin Spiral | Last Stand |
+  | 2, 5, 8… | HIVE CARRIER | Drone Bay（放出無人機） | Bloom（反轉花形彈） | Laser Rain |
+  | 3, 6, 9… | TWIN FANG | Crossfire | Pinwheel | Fang Rush（追著玩家） |
+
+  HP 到 66% / 33% 換階段並清空子彈；每階段 30 秒時限，時限內打破有加分，
+  最後階段時間到魔王會逃走。每輪一次魔王，HP 與彈幕速度都會提升。
+
+  ![bosses](docs/bosses.png)
 
 ## 專案結構
 
@@ -82,6 +99,7 @@ vertical-shmup/
 │   ├── index.html  css/style.css
 │   ├── js/                 rules.js(自動產生) rng core features policy renderer audio main
 │   └── model/              dqn_model.js（由 export_web.py 產生）
+├── notebooks/              train_on_colab.ipynb（Google Colab 訓練用）
 ├── models/                 訓練出的 checkpoint（不進 git）
 ├── tests/                  pytest 測試，包含 Python ↔ JavaScript 一致性測試
 └── docs/                   README 圖片
@@ -129,8 +147,17 @@ python scripts/train_cpu.py --eval-only          # 評估 models/dqn.pt
 python scripts/train_cpu.py --help               # 所有超參數都可以用參數改
 ```
 
-最佳模型存到 `models/dqn.pt`，最新的存到 `models/dqn_last.pt`（Ctrl+C 中斷也會存）。
+最佳模型存到 `models/dqn.pt`，最新的（含 optimizer，可續訓）存到 `models/dqn_last.pt`
+（Ctrl+C 中斷也會存），用 `--resume models/dqn_last.pt` 接著訓練。
 GPU 版只用 PyTorch 1.0 時代就有的 CUDA 功能（無 AMP / MPS），**Mac 沒有 CUDA，請用 CPU 版**。
+
+### 在 Google Colab 上訓練
+
+1. 本機打包：`git archive --format=zip --prefix=vertical-shmup/ -o ~/Desktop/vertical-shmup.zip HEAD`，
+   把 zip 上傳到 Google Drive 根目錄。
+2. 在 Colab 上傳 `notebooks/train_on_colab.ipynb`，執行階段選 **T4 GPU**，依序執行每個 cell。
+   checkpoint 和 log 會存到 `MyDrive/shmup/`，斷線後用 `--resume` 續訓。
+3. 下載 `dqn.pt` 放到 `models/`、`dqn_model.js` 放到 `web/model/`，在本機 demo。
 
 ## 網頁版（Demo 用）
 
@@ -145,7 +172,8 @@ python -m http.server 8000
 ```
 
 再開 <http://localhost:8000/web/>。右側面板可以切換自己玩 / 自動駕駛、Agent 視角、
-1× / 2× / 4× 速度，並即時顯示 18 個動作的 Q 值與自動駕駛的平均分數。
+1× / 2× / 4× 速度、**Jump to boss / Next stage boss**（直接跳到魔王戰），
+並即時顯示 18 個動作的 Q 值與自動駕駛的平均分數。
 網頁版的神經網路推論是手寫的 JavaScript 矩陣乘法，不需要任何 ML 函式庫。
 （Safari 不支援 .ogg 音效，建議用 Chrome / Firefox。）
 
@@ -156,7 +184,7 @@ pip install -e ".[rl,dev]"
 pytest
 ```
 
-`tests/test_web_parity.py` 會用同一個 seed 分別跑 Python 和 Node.js 版 15,000 frame（包含 Boss 戰），
+`tests/test_web_parity.py` 會用同一個 seed 分別跑 Python 和 Node.js 版 30,000 frame（包含三種魔王），
 確認分數、子彈數、亂數狀態、觀測向量完全一致，並確認匯出的網路在 JS 中算出的 Q 值和 PyTorch 相同；
 沒有安裝 Node.js 時會自動跳過。
 

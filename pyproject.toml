@@ -8,12 +8,13 @@ version = "2.0.0"
 description = "Vertical bullet-hell shooter with a Deep Q-Network autopilot"
 readme = "README.md"
 requires-python = ">=3.7"
+# The simulation and training need only numpy (+ torch); pygame is only for playing.
 dependencies = [
-    "pygame>=1.9.4",
     "numpy>=1.15",
 ]
 
 [project.optional-dependencies]
+game = ["pygame>=1.9.4"]
 rl = ["torch>=1.0"]
 dev = ["pytest>=4.0"]
 

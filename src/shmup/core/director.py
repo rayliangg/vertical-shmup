@@ -1,22 +1,32 @@
-"""Decides what spawns and when: timed waves, then a boss at the end of each stage."""
+"""Decides what spawns and when.
+
+A stage: waves -> mid-boss (Sentinel) -> waves -> WARNING -> stage boss.
+Stage bosses rotate Warden -> Hive Carrier -> Twin Fang, getting tougher each loop.
+"""
 import math
 
 from . import rules as R
-from .enemies import Enemy
+from .enemies import ENTRY_Y, Enemy
 
-IDLE, WARNING, BOSS_FIGHT = 0, 1, 2
+IDLE, WARNING, BOSS_FIGHT, MIDBOSS = 0, 1, 2, 3
 
 
 class Director:
-    __slots__ = ("state", "wave_timer", "warn_timer")
+    __slots__ = ("state", "wave_timer", "warn_timer", "midboss_spawned")
 
     def __init__(self):
         self.state = IDLE
         self.wave_timer = 90
         self.warn_timer = 0
+        self.midboss_spawned = False
 
     def update(self, w):
         if self.state == IDLE:
+            if not self.midboss_spawned and w.stage_frame >= R.MIDBOSS_TIME:
+                self.midboss_spawned = True
+                self.state = MIDBOSS
+                w.enemies.append(self._boss(w, "midboss", R.WIDTH / 2))
+                return
             if w.stage_frame >= R.BOSS_TIME:
                 self.state = WARNING
                 self.warn_timer = R.BOSS_WARNING_FRAMES
@@ -27,17 +37,33 @@ class Director:
                 self.spawn_wave(w)
                 base = max(R.WAVE_INTERVAL_MIN, R.WAVE_INTERVAL_START / w.difficulty)
                 self.wave_timer = int(math.floor(base * w.rng.uniform(0.8, 1.2)))
+        elif self.state == MIDBOSS:
+            for e in w.enemies:
+                if e.kind == "midboss" and e.alive:
+                    return
+            self.state = IDLE
+            self.wave_timer = 90
         elif self.state == WARNING:
             self.warn_timer -= 1
             if self.warn_timer <= 0:
-                hp = int(math.floor(R.ENEMIES["boss"]["hp"]
-                                    * (1 + R.BOSS_HP_PER_STAGE * (w.stage - 1))))
-                w.enemies.append(Enemy("boss", R.WIDTH / 2, -60.0, hp=hp))
+                kind = R.BOSS_ORDER[(w.stage - 1) % len(R.BOSS_ORDER)]
+                w.enemies.append(self._boss(w, kind, R.WIDTH / 2))
                 self.state = BOSS_FIGHT
 
+    @staticmethod
+    def _boss(w, kind, x):
+        hp = int(math.floor(R.ENEMIES[kind]["hp"] * (1 + R.BOSS_HP_PER_STAGE * (w.stage - 1))))
+        e = Enemy(kind, x, -60.0, hp=hp)
+        e.home_x = x
+        e.target_y = ENTRY_Y[kind]
+        e.fire_timer, e.alt_timer = 40, 70
+        return e
+
     def boss_defeated(self):
+        """Stage boss killed or escaped: start the next stage."""
         self.state = IDLE
         self.wave_timer = 150
+        self.midboss_spawned = False
 
     # -- waves ---------------------------------------------------------------
     def spawn_wave(self, w):

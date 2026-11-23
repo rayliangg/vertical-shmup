@@ -11,6 +11,9 @@ dist/
 models/*
 !models/.gitkeep
 
+# Personal notes (not part of the repo)
+README2.md
+
 # Local state
 .highscore
 .DS_Store

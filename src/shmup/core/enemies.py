@@ -14,7 +14,8 @@ HALF_PI = math.pi / 2
 class Enemy:
     __slots__ = ("kind", "x", "y", "vx", "vy", "hp", "max_hp", "radius", "score",
                  "drop", "age", "alive", "state", "timer", "fire_timer", "alt_timer",
-                 "home_x", "amp", "phase", "target_y", "flash")
+                 "home_x", "amp", "phase", "target_y", "flash", "is_boss",
+                 "phase_index", "phase_timer")
 
     def __init__(self, kind, x, y, vx=0.0, vy=0.0, hp=None):
         spec = R.ENEMIES[kind]
@@ -35,10 +36,9 @@ class Enemy:
         self.phase = 0.0
         self.target_y = 0.0
         self.flash = 0              # frames of white hit-flash (cosmetic)
-
-    @property
-    def is_boss(self):
-        return self.kind == "boss"
+        self.is_boss = spec.get("boss", False)
+        self.phase_index = 0        # boss phase 0 / 1 / 2
+        self.phase_timer = 0        # frames spent in the current boss phase
 
     @property
     def damageable(self):
@@ -141,21 +141,55 @@ def _meteor(e, w):
         e.alive = False
 
 
-def _boss(e, w):
-    if e.state == 0:                      # entrance
-        e.y += 1.5
-        if e.y >= 130:
-            e.state = 1
-        return
-    e.phase += 0.012
-    new_x = R.WIDTH / 2 + 140 * math.sin(e.phase)
+# --- bosses -----------------------------------------------------------------
+TAU = 2 * math.pi
+ENTRY_Y = {"midboss": 120.0, "boss_warden": 130.0, "boss_carrier": 150.0, "boss_fang": 120.0}
+
+
+def _sway(e, center, amp, speed):
+    """Move sideways on a sine wave; keeps vx up to date for the agent."""
+    e.phase += speed
+    new_x = center + amp * math.sin(e.phase)
     e.vx = new_x - e.x
     e.x = new_x
-    bs, d = w.bullet_speed, w.difficulty
+
+
+def _boss_phases(e, w):
+    """Entrance, phase changes and phase time-outs shared by all stage bosses.
+
+    Returns False while the boss is still flying in (it doesn't shoot yet).
+    """
+    if e.state == 0:
+        e.y += 1.5
+        if e.y >= e.target_y:
+            e.state = 1
+            w.emit("boss", e.x, e.y, e.kind)
+            w.emit("phase", e.x, e.y, (e.kind, 0))
+        return False
+    e.phase_timer += 1
     frac = e.hp / e.max_hp
+    phase = 0 if frac > R.PHASE_THRESHOLDS[0] else (1 if frac > R.PHASE_THRESHOLDS[1] else 2)
+    if phase != e.phase_index:
+        w.boss_phase_change(e, phase, False)
+    elif e.phase_timer >= R.BOSS_PHASE_TIME:
+        if e.phase_index < 2:                       # time-out: skip to the next phase
+            e.hp = int(math.floor(e.max_hp * R.PHASE_THRESHOLDS[e.phase_index]))
+            w.boss_phase_change(e, e.phase_index + 1, True)
+        else:
+            w.boss_escaped(e)
+            return False
     e.fire_timer -= 1
     e.alt_timer -= 1
-    if frac > 0.66:                       # phase 1: aimed fans + slow rings
+    return True
+
+
+def _warden(e, w):
+    """Stage 1 boss: aimed fans -> double spiral -> dense rings."""
+    if not _boss_phases(e, w):
+        return
+    _sway(e, R.WIDTH / 2, 140, 0.012)
+    bs, d = w.bullet_speed, w.difficulty
+    if e.phase_index == 0:
         if e.fire_timer <= 0:
             a = patterns.aim_angle(e.x, e.y, w.player)
             patterns.fan(w.bullets, e.x, e.y + 30, a, 3.4 * bs, 5, 0.6)
@@ -164,7 +198,7 @@ def _boss(e, w):
             patterns.ring(w.bullets, e.x, e.y, 20, 1.9 * bs, e.amp, "big")
             e.amp += 0.3
             e.alt_timer = interval(130, d)
-    elif frac > 0.33:                     # phase 2: double spiral + laser fans
+    elif e.phase_index == 1:
         if e.fire_timer <= 0:
             patterns.single(w.bullets, e.x, e.y, e.amp, 2.5 * bs)
             patterns.single(w.bullets, e.x, e.y, e.amp + math.pi, 2.5 * bs)
@@ -174,7 +208,7 @@ def _boss(e, w):
             a = patterns.aim_angle(e.x, e.y, w.player)
             patterns.fan(w.bullets, e.x, e.y + 30, a, 6.0 * bs, 3, 0.25, "laser")
             e.alt_timer = interval(90, d)
-    else:                                 # phase 3: dense rings + aimed stream
+    else:
         if e.fire_timer <= 0:
             patterns.ring(w.bullets, e.x, e.y, 24, 2.4 * bs, e.amp)
             e.amp += 0.13
@@ -185,6 +219,119 @@ def _boss(e, w):
             e.alt_timer = 10
 
 
+def _carrier(e, w):
+    """Stage 2 boss: launches divers, then a 5-petal bloom, then laser rain."""
+    if not _boss_phases(e, w):
+        return
+    _sway(e, R.WIDTH / 2, 100, 0.008)
+    bs, d = w.bullet_speed, w.difficulty
+    if e.phase_index == 0:
+        if e.fire_timer <= 0:
+            patterns.ring(w.bullets, e.x, e.y, 16, 1.8 * bs, e.amp)
+            e.amp += 0.2
+            e.fire_timer = interval(40, d)
+        if e.alt_timer <= 0:
+            drones = 0
+            for o in w.enemies:
+                if o.kind == "diver" and o.alive:
+                    drones += 1
+            if drones < R.MAX_DRONES:
+                for side in (-1, 1):
+                    drone = Enemy("diver", e.x + side * 50, e.y + 10, 0.0, 3.0)
+                    drone.target_y = e.y + 90
+                    w.enemies.append(drone)
+            e.alt_timer = interval(100, d)
+    elif e.phase_index == 1:
+        if e.fire_timer <= 0:
+            for k in range(5):
+                patterns.single(w.bullets, e.x, e.y, e.amp + k * TAU / 5, 2.3 * bs)
+            spin = 0.11 if (e.phase_timer // 120) % 2 == 0 else -0.11
+            e.amp += spin
+            e.fire_timer = 6
+        if e.alt_timer <= 0:
+            a = patterns.aim_angle(e.x, e.y, w.player)
+            patterns.single(w.bullets, e.x, e.y + 30, a, 3.0 * bs, "big")
+            e.alt_timer = interval(70, d)
+    else:
+        if e.fire_timer <= 0:
+            x = w.rng.uniform(20, R.WIDTH - 20)
+            patterns.single(w.bullets, x, -10.0, HALF_PI, 4.5 * bs, "laser")
+            e.fire_timer = interval(10, d)
+        if e.alt_timer <= 0:
+            a = patterns.aim_angle(e.x, e.y, w.player)
+            patterns.fan(w.bullets, e.x, e.y + 30, a, 3.0 * bs, 7, 1.0)
+            e.alt_timer = interval(50, d)
+
+
+def _fang(e, w):
+    """Stage 3 boss: twin-gun crossfire, counter-rotating pinwheel, then chases you."""
+    if not _boss_phases(e, w):
+        return
+    bs, d = w.bullet_speed, w.difficulty
+    if e.phase_index < 2:
+        _sway(e, R.WIDTH / 2, 160, 0.02)
+    else:                                            # Fang Rush: follow the player
+        e.vx = min(max(w.player.x - e.x, -3.0), 3.0)
+        e.x += e.vx
+    if e.phase_index == 0:
+        if e.fire_timer <= 0:
+            for side in (-1, 1):
+                gx, gy = e.x + side * 50, e.y + 20
+                a = patterns.aim_angle(gx, gy, w.player)
+                patterns.fan(w.bullets, gx, gy, a, 5.5 * bs, 3, 0.2, "laser")
+            e.fire_timer = interval(30, d)
+        if e.alt_timer <= 0:
+            patterns.ring(w.bullets, e.x, e.y, 12, 2.0 * bs, e.amp)
+            e.amp += 0.25
+            e.alt_timer = interval(60, d)
+    elif e.phase_index == 1:
+        if e.fire_timer <= 0:
+            for k in range(4):
+                patterns.single(w.bullets, e.x, e.y, e.amp + k * HALF_PI, 2.6 * bs)
+                patterns.single(w.bullets, e.x, e.y, -e.amp + k * HALF_PI + 0.4, 2.2 * bs)
+            e.amp += 0.17
+            e.fire_timer = 8
+    else:
+        if e.fire_timer <= 0:
+            patterns.ring(w.bullets, e.x, e.y, 18, 2.0 * bs, e.amp, "big")
+            e.amp += 0.17
+            e.fire_timer = interval(45, d)
+        if e.alt_timer <= 0:
+            a = patterns.aim_angle(e.x, e.y, w.player)
+            patterns.single(w.bullets, e.x, e.y + 30, a, 4.4 * bs)
+            e.alt_timer = 8
+
+
+def _midboss(e, w):
+    """Mid-stage guard: rings + aimed bursts; leaves if not killed in time."""
+    if e.state == 0:
+        e.y += 2.0
+        if e.y >= e.target_y:
+            e.state = 1
+            w.emit("boss", e.x, e.y, e.kind)
+        return
+    if e.state == 2:
+        e.y += e.vy
+        if e.y < -60:
+            e.alive = False
+        return
+    _sway(e, e.home_x, 80, 0.015)
+    bs, d = w.bullet_speed, w.difficulty
+    e.fire_timer -= 1
+    if e.fire_timer <= 0:
+        patterns.ring(w.bullets, e.x, e.y, 14, 2.2 * bs, e.amp)
+        e.amp += 0.31
+        e.fire_timer = interval(45, d)
+    e.alt_timer -= 1
+    if e.alt_timer <= 0:
+        a = patterns.aim_angle(e.x, e.y, w.player)
+        patterns.fan(w.bullets, e.x, e.y + 20, a, 3.6 * bs, 3, 0.3)
+        e.alt_timer = interval(25, d)
+    e.timer += 1
+    if e.timer >= R.MIDBOSS_ESCAPE:
+        e.state, e.vx, e.vy = 2, 0.0, -2.0
+
+
 UPDATERS = {
     "scout": _scout,
     "weaver": _weaver,
@@ -193,7 +340,10 @@ UPDATERS = {
     "meteor_big": _meteor,
     "meteor_medium": _meteor,
     "meteor_small": _meteor,
-    "boss": _boss,
+    "midboss": _midboss,
+    "boss_warden": _warden,
+    "boss_carrier": _carrier,
+    "boss_fang": _fang,
 }
 
 SPLITS = {"meteor_big": "meteor_medium", "meteor_medium": "meteor_small"}

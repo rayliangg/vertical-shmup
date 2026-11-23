@@ -68,6 +68,8 @@
       $("btn-mute").textContent = audio.toggle() ? "Sound: ON" : "Sound: OFF";
       canvas.focus();
     };
+    $("btn-boss").onclick = function () { jumpToBoss(0); canvas.focus(); };
+    $("btn-stage").onclick = function () { jumpToBoss(1); canvas.focus(); };
     Array.prototype.forEach.call(document.querySelectorAll("[data-speed]"), function (b) {
       b.onclick = function () { setSpeed(Number(b.getAttribute("data-speed"))); canvas.focus(); };
     });
@@ -114,6 +116,16 @@
     state.scene = "playing";
     state.overTimer = 0;
     audio.start();
+  }
+
+  // Demo shortcut: skip the waves and fight the stage boss (optionally of a later stage).
+  function jumpToBoss(extraStages) {
+    if (state.scene !== "playing") newGame();
+    world.stage += extraStages;
+    world.enemies = world.enemies.filter(function (e) { return !e.isBoss; });
+    world.director.state = S.Director.IDLE;
+    world.director.midbossSpawned = true;
+    world.stageFrame = R.BOSS_TIME - 1;
   }
 
   function stepOnce() {
@@ -229,6 +241,7 @@
     requestAnimationFrame(frame);
   }
 
+  S.debug = { world: function () { return world; }, state: state };   // for the console
   initPanel();
   setSpeed(1);
   renderer.load(function () { requestAnimationFrame(frame); });

@@ -13,8 +13,11 @@ and by the RL environment (rewards):
     cancel     enemy bullet erased (bomb / boss kill)     value: None
     graze      bullet brushed past the player             value: None
     pickup     item collected                             value: item kind
-    warning    boss incoming                              value: stage
-    boss_down  boss destroyed, next stage begins          value: new stage
+    warning    stage boss incoming                        value: stage
+    boss       a boss finished its entrance               value: enemy kind
+    phase      a boss started a new attack phase          value: (kind, phase 0-2)
+    boss_down  stage boss destroyed, next stage begins    value: new stage
+    escape     stage boss outlasted its last phase        value: new stage
     gameover   player has no HP left                      value: score
 """
 from . import rules as R
@@ -60,8 +63,9 @@ class World:
 
     @property
     def boss(self):
+        """The mid-boss or stage boss currently on screen, if any."""
         for e in self.enemies:
-            if e.kind == "boss" and e.alive:
+            if e.is_boss and e.alive:
                 return e
         return None
 
@@ -137,16 +141,16 @@ class World:
         self.score += e.score
         self.emit("explode", e.x, e.y, e.kind)
         rng = self.rng
-        if e.kind == "boss":
-            for _ in range(R.BOSS_ITEM_DROPS):
+        if e.is_boss:
+            drops = R.MIDBOSS_ITEM_DROPS if e.kind == "midboss" else R.BOSS_ITEM_DROPS
+            for _ in range(drops):
                 x = e.x + rng.uniform(-60, 60)
                 y = e.y + rng.uniform(-30, 30)
                 self.items.append(Item(x, y, rng.weighted(ITEM_CHOICES)))
             self._cancel_bullets()
-            self.stage += 1
-            self.stage_frame = 0
-            self.director.boss_defeated()
-            self.emit("boss_down", e.x, e.y, self.stage)
+            if e.kind != "midboss":
+                self._next_stage()
+                self.emit("boss_down", e.x, e.y, self.stage)
             return
         if e.drop > 0 and rng.chance(e.drop):
             self.items.append(Item(e.x, e.y, rng.weighted(ITEM_CHOICES)))
@@ -155,6 +159,27 @@ class World:
             for side in (-1, 1):
                 self.enemies.append(Enemy(child, e.x + side * 10, e.y,
                                           side * 1.2 + e.vx * 0.5, e.vy))
+
+    # -- bosses ------------------------------------------------------------
+    def boss_phase_change(self, e, phase, timed_out):
+        e.phase_index = phase
+        e.phase_timer = 0
+        e.fire_timer, e.alt_timer = 40, 70
+        self._cancel_bullets()
+        if not timed_out:
+            self.score += R.PHASE_BONUS
+        self.emit("phase", e.x, e.y, (e.kind, phase))
+
+    def boss_escaped(self, e):
+        e.alive = False
+        self._cancel_bullets()
+        self._next_stage()
+        self.emit("escape", e.x, e.y, self.stage)
+
+    def _next_stage(self):
+        self.stage += 1
+        self.stage_frame = 0
+        self.director.boss_defeated()
 
     def _player_collisions(self):
         p = self.player
@@ -182,7 +207,7 @@ class World:
             dx, dy = e.x - p.x, e.y - p.y
             rr = R.PLAYER_RADIUS + e.radius * R.ENEMY_CONTACT_SCALE
             if dx * dx + dy * dy < rr * rr and p.invuln == 0:
-                if e.kind != "boss":
+                if not e.is_boss:
                     self.damage_enemy(e, R.CONTACT_DAMAGE_TO_ENEMY)
                 lost += self._hit_player()
         return lost

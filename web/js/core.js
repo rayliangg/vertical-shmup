@@ -128,6 +128,9 @@
     this.phase = 0;
     this.targetY = 0;
     this.flash = 0;
+    this.isBoss = spec.boss === true;
+    this.phaseIndex = 0;
+    this.phaseTimer = 0;
   }
   Enemy.prototype.damageable = function () { return this.y > 10; };
   Enemy.prototype.update = function (w) {
@@ -221,20 +224,50 @@
     if (offscreen(e)) e.alive = false;
   }
 
-  function boss(e, w) {
-    if (e.state === 0) {
-      e.y += 1.5;
-      if (e.y >= 130) e.state = 1;
-      return;
-    }
-    e.phase += 0.012;
-    var nx = R.WIDTH / 2 + 140 * Math.sin(e.phase);
+  // ---------------------------------------------------------------- bosses
+  var ENTRY_Y = { midboss: 120.0, boss_warden: 130.0, boss_carrier: 150.0, boss_fang: 120.0 };
+
+  function sway(e, center, amp, speed) {
+    e.phase += speed;
+    var nx = center + amp * Math.sin(e.phase);
     e.vx = nx - e.x;
     e.x = nx;
-    var bs = w.bulletSpeed(), d = w.difficulty(), frac = e.hp / e.maxHp, a;
+  }
+
+  function bossPhases(e, w) {
+    if (e.state === 0) {
+      e.y += 1.5;
+      if (e.y >= e.targetY) {
+        e.state = 1;
+        w.emit("boss", e.x, e.y, e.kind);
+        w.emit("phase", e.x, e.y, [e.kind, 0]);
+      }
+      return false;
+    }
+    e.phaseTimer += 1;
+    var frac = e.hp / e.maxHp, T = R.PHASE_THRESHOLDS;
+    var phase = frac > T[0] ? 0 : (frac > T[1] ? 1 : 2);
+    if (phase !== e.phaseIndex) {
+      w.bossPhaseChange(e, phase, false);
+    } else if (e.phaseTimer >= R.BOSS_PHASE_TIME) {
+      if (e.phaseIndex < 2) {
+        e.hp = Math.floor(e.maxHp * T[e.phaseIndex]);
+        w.bossPhaseChange(e, e.phaseIndex + 1, true);
+      } else {
+        w.bossEscaped(e);
+        return false;
+      }
+    }
     e.fireTimer -= 1;
     e.altTimer -= 1;
-    if (frac > 0.66) {
+    return true;
+  }
+
+  function warden(e, w) {
+    if (!bossPhases(e, w)) return;
+    sway(e, R.WIDTH / 2, 140, 0.012);
+    var bs = w.bulletSpeed(), d = w.difficulty(), a;
+    if (e.phaseIndex === 0) {
       if (e.fireTimer <= 0) {
         a = aimAngle(e.x, e.y, w.player);
         fan(w.bullets, e.x, e.y + 30, a, 3.4 * bs, 5, 0.6);
@@ -245,7 +278,7 @@
         e.amp += 0.3;
         e.altTimer = interval(130, d);
       }
-    } else if (frac > 0.33) {
+    } else if (e.phaseIndex === 1) {
       if (e.fireTimer <= 0) {
         single(w.bullets, e.x, e.y, e.amp, 2.5 * bs);
         single(w.bullets, e.x, e.y, e.amp + Math.PI, 2.5 * bs);
@@ -271,23 +304,165 @@
     }
   }
 
+  function carrier(e, w) {
+    if (!bossPhases(e, w)) return;
+    sway(e, R.WIDTH / 2, 100, 0.008);
+    var bs = w.bulletSpeed(), d = w.difficulty(), a, k;
+    if (e.phaseIndex === 0) {
+      if (e.fireTimer <= 0) {
+        ring(w.bullets, e.x, e.y, 16, 1.8 * bs, e.amp);
+        e.amp += 0.2;
+        e.fireTimer = interval(40, d);
+      }
+      if (e.altTimer <= 0) {
+        var drones = 0;
+        for (k = 0; k < w.enemies.length; k++) {
+          if (w.enemies[k].kind === "diver" && w.enemies[k].alive) drones += 1;
+        }
+        if (drones < R.MAX_DRONES) {
+          for (var side = -1; side <= 1; side += 2) {
+            var drone = new Enemy("diver", e.x + side * 50, e.y + 10, 0, 3.0);
+            drone.targetY = e.y + 90;
+            w.enemies.push(drone);
+          }
+        }
+        e.altTimer = interval(100, d);
+      }
+    } else if (e.phaseIndex === 1) {
+      if (e.fireTimer <= 0) {
+        for (k = 0; k < 5; k++) single(w.bullets, e.x, e.y, e.amp + k * TAU / 5, 2.3 * bs);
+        var spin = Math.floor(e.phaseTimer / 120) % 2 === 0 ? 0.11 : -0.11;
+        e.amp += spin;
+        e.fireTimer = 6;
+      }
+      if (e.altTimer <= 0) {
+        a = aimAngle(e.x, e.y, w.player);
+        single(w.bullets, e.x, e.y + 30, a, 3.0 * bs, "big");
+        e.altTimer = interval(70, d);
+      }
+    } else {
+      if (e.fireTimer <= 0) {
+        var x = w.rng.uniform(20, R.WIDTH - 20);
+        single(w.bullets, x, -10.0, HALF_PI, 4.5 * bs, "laser");
+        e.fireTimer = interval(10, d);
+      }
+      if (e.altTimer <= 0) {
+        a = aimAngle(e.x, e.y, w.player);
+        fan(w.bullets, e.x, e.y + 30, a, 3.0 * bs, 7, 1.0);
+        e.altTimer = interval(50, d);
+      }
+    }
+  }
+
+  function fang(e, w) {
+    if (!bossPhases(e, w)) return;
+    var bs = w.bulletSpeed(), d = w.difficulty(), a, k;
+    if (e.phaseIndex < 2) {
+      sway(e, R.WIDTH / 2, 160, 0.02);
+    } else {
+      e.vx = Math.min(Math.max(w.player.x - e.x, -3.0), 3.0);
+      e.x += e.vx;
+    }
+    if (e.phaseIndex === 0) {
+      if (e.fireTimer <= 0) {
+        for (var side = -1; side <= 1; side += 2) {
+          var gx = e.x + side * 50, gy = e.y + 20;
+          a = aimAngle(gx, gy, w.player);
+          fan(w.bullets, gx, gy, a, 5.5 * bs, 3, 0.2, "laser");
+        }
+        e.fireTimer = interval(30, d);
+      }
+      if (e.altTimer <= 0) {
+        ring(w.bullets, e.x, e.y, 12, 2.0 * bs, e.amp);
+        e.amp += 0.25;
+        e.altTimer = interval(60, d);
+      }
+    } else if (e.phaseIndex === 1) {
+      if (e.fireTimer <= 0) {
+        for (k = 0; k < 4; k++) {
+          single(w.bullets, e.x, e.y, e.amp + k * HALF_PI, 2.6 * bs);
+          single(w.bullets, e.x, e.y, -e.amp + k * HALF_PI + 0.4, 2.2 * bs);
+        }
+        e.amp += 0.17;
+        e.fireTimer = 8;
+      }
+    } else {
+      if (e.fireTimer <= 0) {
+        ring(w.bullets, e.x, e.y, 18, 2.0 * bs, e.amp, "big");
+        e.amp += 0.17;
+        e.fireTimer = interval(45, d);
+      }
+      if (e.altTimer <= 0) {
+        a = aimAngle(e.x, e.y, w.player);
+        single(w.bullets, e.x, e.y + 30, a, 4.4 * bs);
+        e.altTimer = 8;
+      }
+    }
+  }
+
+  function midboss(e, w) {
+    if (e.state === 0) {
+      e.y += 2.0;
+      if (e.y >= e.targetY) { e.state = 1; w.emit("boss", e.x, e.y, e.kind); }
+      return;
+    }
+    if (e.state === 2) {
+      e.y += e.vy;
+      if (e.y < -60) e.alive = false;
+      return;
+    }
+    sway(e, e.homeX, 80, 0.015);
+    var bs = w.bulletSpeed(), d = w.difficulty();
+    e.fireTimer -= 1;
+    if (e.fireTimer <= 0) {
+      ring(w.bullets, e.x, e.y, 14, 2.2 * bs, e.amp);
+      e.amp += 0.31;
+      e.fireTimer = interval(45, d);
+    }
+    e.altTimer -= 1;
+    if (e.altTimer <= 0) {
+      fan(w.bullets, e.x, e.y + 20, aimAngle(e.x, e.y, w.player), 3.6 * bs, 3, 0.3);
+      e.altTimer = interval(25, d);
+    }
+    e.timer += 1;
+    if (e.timer >= R.MIDBOSS_ESCAPE) { e.state = 2; e.vx = 0; e.vy = -2.0; }
+  }
+
   var UPDATERS = {
     scout: scout, weaver: weaver, diver: diver, gunship: gunship,
-    meteor_big: meteor, meteor_medium: meteor, meteor_small: meteor, boss: boss
+    meteor_big: meteor, meteor_medium: meteor, meteor_small: meteor,
+    midboss: midboss, boss_warden: warden, boss_carrier: carrier, boss_fang: fang
   };
   var SPLITS = { meteor_big: "meteor_medium", meteor_medium: "meteor_small" };
 
   // ---------------------------------------------------------------- director
-  var IDLE = 0, WARNING = 1, BOSS_FIGHT = 2;
+  var IDLE = 0, WARNING = 1, BOSS_FIGHT = 2, MIDBOSS = 3;
 
   function Director() {
     this.state = IDLE;
     this.waveTimer = 90;
     this.warnTimer = 0;
+    this.midbossSpawned = false;
+  }
+
+  function spawnBoss(w, kind, x) {
+    var hp = Math.floor(R.ENEMIES[kind].hp * (1 + R.BOSS_HP_PER_STAGE * (w.stage - 1)));
+    var e = new Enemy(kind, x, -60.0, 0, 0, hp);
+    e.homeX = x;
+    e.targetY = ENTRY_Y[kind];
+    e.fireTimer = 40;
+    e.altTimer = 70;
+    return e;
   }
 
   Director.prototype.update = function (w) {
     if (this.state === IDLE) {
+      if (!this.midbossSpawned && w.stageFrame >= R.MIDBOSS_TIME) {
+        this.midbossSpawned = true;
+        this.state = MIDBOSS;
+        w.enemies.push(spawnBoss(w, "midboss", R.WIDTH / 2));
+        return;
+      }
       if (w.stageFrame >= R.BOSS_TIME) {
         this.state = WARNING;
         this.warnTimer = R.BOSS_WARNING_FRAMES;
@@ -300,11 +475,17 @@
         var base = Math.max(R.WAVE_INTERVAL_MIN, R.WAVE_INTERVAL_START / w.difficulty());
         this.waveTimer = Math.floor(base * w.rng.uniform(0.8, 1.2));
       }
+    } else if (this.state === MIDBOSS) {
+      for (var i = 0; i < w.enemies.length; i++) {
+        if (w.enemies[i].kind === "midboss" && w.enemies[i].alive) return;
+      }
+      this.state = IDLE;
+      this.waveTimer = 90;
     } else if (this.state === WARNING) {
       this.warnTimer -= 1;
       if (this.warnTimer <= 0) {
-        var hp = Math.floor(R.ENEMIES.boss.hp * (1 + R.BOSS_HP_PER_STAGE * (w.stage - 1)));
-        w.enemies.push(new Enemy("boss", R.WIDTH / 2, -60, 0, 0, hp));
+        var kind = R.BOSS_ORDER[(w.stage - 1) % R.BOSS_ORDER.length];
+        w.enemies.push(spawnBoss(w, kind, R.WIDTH / 2));
         this.state = BOSS_FIGHT;
       }
     }
@@ -313,6 +494,7 @@
   Director.prototype.bossDefeated = function () {
     this.state = IDLE;
     this.waveTimer = 150;
+    this.midbossSpawned = false;
   };
 
   Director.prototype.spawnWave = function (w) {
@@ -411,7 +593,7 @@
   World.prototype.boss = function () {
     for (var i = 0; i < this.enemies.length; i++) {
       var e = this.enemies[i];
-      if (e.kind === "boss" && e.alive) return e;
+      if (e.isBoss && e.alive) return e;
     }
     return null;
   };
@@ -485,17 +667,18 @@
     this.score += e.score;
     this.emit("explode", e.x, e.y, e.kind);
     var rng = this.rng, i;
-    if (e.kind === "boss") {
-      for (i = 0; i < R.BOSS_ITEM_DROPS; i++) {
+    if (e.isBoss) {
+      var drops = e.kind === "midboss" ? R.MIDBOSS_ITEM_DROPS : R.BOSS_ITEM_DROPS;
+      for (i = 0; i < drops; i++) {
         var x = e.x + rng.uniform(-60, 60);
         var y = e.y + rng.uniform(-30, 30);
         this.items.push(new Item(x, y, rng.weighted(ITEM_CHOICES)));
       }
       this.cancelBullets(null);
-      this.stage += 1;
-      this.stageFrame = 0;
-      this.director.bossDefeated();
-      this.emit("boss_down", e.x, e.y, this.stage);
+      if (e.kind !== "midboss") {
+        this.nextStage();
+        this.emit("boss_down", e.x, e.y, this.stage);
+      }
       return;
     }
     if (e.drop > 0 && rng.chance(e.drop)) {
@@ -507,6 +690,29 @@
         this.enemies.push(new Enemy(child, e.x + i * 10, e.y, i * 1.2 + e.vx * 0.5, e.vy));
       }
     }
+  };
+
+  World.prototype.bossPhaseChange = function (e, phase, timedOut) {
+    e.phaseIndex = phase;
+    e.phaseTimer = 0;
+    e.fireTimer = 40;
+    e.altTimer = 70;
+    this.cancelBullets(null);
+    if (!timedOut) this.score += R.PHASE_BONUS;
+    this.emit("phase", e.x, e.y, [e.kind, phase]);
+  };
+
+  World.prototype.bossEscaped = function (e) {
+    e.alive = false;
+    this.cancelBullets(null);
+    this.nextStage();
+    this.emit("escape", e.x, e.y, this.stage);
+  };
+
+  World.prototype.nextStage = function () {
+    this.stage += 1;
+    this.stageFrame = 0;
+    this.director.bossDefeated();
   };
 
   World.prototype.playerCollisions = function () {
@@ -538,7 +744,7 @@
       dx = e.x - p.x; dy = e.y - p.y;
       rr = R.PLAYER_RADIUS + e.radius * R.ENEMY_CONTACT_SCALE;
       if (dx * dx + dy * dy < rr * rr && p.invuln === 0) {
-        if (e.kind !== "boss") this.damageEnemy(e, R.CONTACT_DAMAGE_TO_ENEMY);
+        if (!e.isBoss) this.damageEnemy(e, R.CONTACT_DAMAGE_TO_ENEMY);
         lost += this.hitPlayer();
       }
     }
@@ -616,5 +822,5 @@
   };
 
   S.World = World;
-  S.Director = { IDLE: IDLE, WARNING: WARNING, BOSS_FIGHT: BOSS_FIGHT };
+  S.Director = { IDLE: IDLE, WARNING: WARNING, BOSS_FIGHT: BOSS_FIGHT, MIDBOSS: MIDBOSS };
 })(this.Shmup = this.Shmup || {});

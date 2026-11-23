@@ -84,7 +84,7 @@ def observe(world, out=None):
         o[j + 3] = e.vy / VEL
         o[j + 4] = e.radius / 50.0
         o[j + 5] = e.hp / e.max_hp
-        o[j + 6] = 1.0 if e.kind == "boss" else 0.0
+        o[j + 6] = 1.0 if e.is_boss else 0.0
         o[j + 7] = 1.0
         j += 8
 
