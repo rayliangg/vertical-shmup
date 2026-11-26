@@ -6,7 +6,7 @@
   var IMAGES = {
     ship: "player/ship.png", life: "ui/life.png",
     scout: "enemies/scout.png", weaver: "enemies/weaver.png", diver: "enemies/diver.png",
-    gunship: "enemies/gunship.png", midboss: "enemies/midboss.png",
+    gunship: "enemies/gunship.png",
     boss_warden: "enemies/boss_warden.png", boss_carrier: "enemies/boss_carrier.png",
     boss_fang: "enemies/boss_fang.png",
     meteor_big: "enemies/meteor_big.png", meteor_medium: "enemies/meteor_medium.png",
@@ -19,6 +19,7 @@
     bg2: "backgrounds/purple.png", bg3: "backgrounds/black.png"
   };
   var ENEMY_WIDTH_SCALE = 2.7;
+  var PANEL_W = 280;                 // 右邊資訊面板的寬度
   var ITEM_COLORS = ["#ffd23c", "#5aff78", "#6ec8ff", "#ff5a5a", "#fff096"];
   var ITEM_LABELS = ["POWER UP", "+1 HP", "SHIELD", "+1 BOMB", "+500"];
   var BULLET_COLORS = { orb: [255, 70, 130], big: [180, 90, 255] };
@@ -140,13 +141,16 @@
       } else if (name === "boss") {
         this.banner = { text: R.BOSS_NAMES[v], left: 100, color: "#ff7878" };
       } else if (name === "phase") {
-        if (v[0] !== "midboss") {
-          this.subtitle = { text: "PHASE " + (v[1] + 1) + "  " + R.PHASE_NAMES[v[0]][v[1]].toUpperCase(),
-                            left: 150 };
-        }
+        this.subtitle = { text: "PHASE " + (v[1] + 1) + "  " + R.PHASE_NAMES[v[0]][v[1]].toUpperCase(),
+                          left: 150 };
       } else if (name === "boss_down") {
         this.banner = { text: "STAGE " + v, left: 150, color: "#ffe65a" };
         this.subtitle = null;
+      } else if (name === "clear") {
+        this.banner = { text: v ? "ALL CLEAR" : "BOSS ESCAPED", left: 600, color: "#ffe65a" };
+        this.subtitle = null;
+      } else if (name === "rage") {
+        this.banner = { text: "RAGE MODE", left: 90, color: "#ff5050" };
       } else if (name === "escape") {
         this.banner = { text: "BOSS ESCAPED", left: 120, color: "#c8c8ff" };
         this.subtitle = null;
@@ -198,12 +202,14 @@
     ctx.fillText(str, x, y);
   };
 
-  Renderer.prototype.draw = function (world, overlay) {
+  Renderer.prototype.draw = function (world, overlay, hud) {
     var ctx = this.ctx, i;
     this.tick += 1;
     var boost = world.director.state === S.Director.WARNING ? 3 : 1;
 
     ctx.save();
+    ctx.beginPath(); ctx.rect(0, 0, R.WIDTH, R.HEIGHT); ctx.clip();   // 震動時不要蓋到面板
+    ctx.fillStyle = "#000"; ctx.fillRect(0, 0, R.WIDTH, R.HEIGHT);
     if (this.shake) ctx.translate(rand(-this.shake, this.shake), rand(-this.shake, this.shake));
     // 背景圖 + 星星
     var bg = this.images["bg" + ((world.stage - 1) % 4)];
@@ -229,12 +235,16 @@
     this.drawEffects();
     ctx.restore();
 
+    ctx.save();
+    ctx.beginPath(); ctx.rect(0, 0, R.WIDTH, R.HEIGHT); ctx.clip();
     if (this.flash) {
       ctx.fillStyle = "rgba(255,255,255," + (0.07 * this.flash) + ")";
       ctx.fillRect(0, 0, R.WIDTH, R.HEIGHT);
     }
     if (this.showAgentView && overlay) this.drawAgentView(world, overlay);
-    this.drawHud(world);
+    this.drawPlayfieldHud(world);
+    ctx.restore();
+    this.drawPanel(world, hud || {});
   };
 
   Renderer.prototype.drawPlayer = function (p) {
@@ -354,47 +364,119 @@
     }
   };
 
-  Renderer.prototype.drawBossBar = function (boss) {
-    var ctx = this.ctx, x = 40, y = 80, w = R.WIDTH - 80;
-    this.text(R.BOSS_NAMES[boss.kind], 11, x, y - 16, "#ff9696", "left");
-    ctx.fillStyle = "#3c141e"; ctx.fillRect(x, y, w, 8);
-    ctx.fillStyle = "#ff465a"; ctx.fillRect(x, y, w * boss.hp / boss.maxHp, 8);
-    ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.strokeRect(x + 0.5, y + 0.5, w, 8);
-    if (boss.kind !== "midboss") {
-      R.PHASE_THRESHOLDS.forEach(function (t) {
-        ctx.beginPath(); ctx.moveTo(x + w * t, y - 2); ctx.lineTo(x + w * t, y + 10); ctx.stroke();
-      });
-      var left = Math.floor(Math.max(0, R.BOSS_PHASE_TIME - boss.phaseTimer) / R.FPS);
-      this.text(("0" + left).slice(-2), 11, x + w, y - 16, "#ffe696", "right");
+  // ---- 遊戲區裡的 HUD：魔王血條、階段名稱、ENEMY 標記、標題帶 ----
+  Renderer.prototype.drawPlayfieldHud = function (world) {
+    var ctx = this.ctx, i;
+    var bosses = world.enemies.filter(function (e) { return e.isBoss && e.alive && e.state > 0; });
+    for (i = 0; i < Math.min(bosses.length, 2); i++) {
+      var boss = bosses[i];
+      this.drawBossBar(boss, 22 + i * 20);
+      var mx = Math.min(Math.max(boss.x, 14), R.WIDTH - 14);   // ENEMY 標記
+      ctx.fillStyle = "#ff465a";
+      ctx.beginPath(); ctx.moveTo(mx - 7, R.HEIGHT); ctx.lineTo(mx + 7, R.HEIGHT);
+      ctx.lineTo(mx, R.HEIGHT - 9); ctx.fill();
+      this.text("ENEMY", 9, mx, R.HEIGHT - 22, "#ff7882");
     }
-  };
-
-  Renderer.prototype.drawHud = function (world) {
-    var ctx = this.ctx, p = world.player, i;
-    this.text(("00000000" + world.score).slice(-8), 20, R.WIDTH / 2, 8);
-    for (i = 0; i < p.hp; i++) this.sprite("life", 19 + i * 25, 17, 22);
-    for (i = 0; i < p.bombs; i++) this.sprite("item3", 17 + i * 22, 41, 18);
-    for (i = 0; i < R.PLAYER_MAX_POWER; i++) {
-      ctx.fillStyle = i < p.power ? "#ffd23c" : "#46465a";
-      ctx.fillRect(8 + i * 12, 56, 9, 5);
-    }
-    this.text("STAGE " + world.stage, 12, R.WIDTH - 8, 10, "#b4c8ff", "right");
-    this.text("GRAZE " + world.graze, 12, R.WIDTH - 8, 28, "#b4c8ff", "right");
-    var boss = world.boss();
-    if (boss && boss.state > 0) this.drawBossBar(boss);
     if (this.subtitle) {
-      this.text(this.subtitle.text, 14, R.WIDTH / 2, 110, "#ffc878");
+      this.text(this.subtitle.text, 13, R.WIDTH - 10, 26 + 20 * Math.min(bosses.length, 2),
+                "#ffc878", "right");
       if (--this.subtitle.left <= 0) this.subtitle = null;
     }
     if (this.banner) {
-      var b = this.banner;
+      var b = this.banner, y = R.HEIGHT / 3;
       if (Math.floor(b.left / 12) % 2 === 0 || b.text !== "WARNING") {
-        this.text(b.text, 34, R.WIDTH / 2, R.HEIGHT / 3, b.color, "center", "middle");
+        ctx.fillStyle = b.text === "WARNING" ? "rgba(120,0,0,0.6)" : "rgba(0,0,0,0.6)";
+        ctx.fillRect(0, y - 32, R.WIDTH, 64);
+        ctx.fillStyle = b.color;
+        ctx.fillRect(0, y - 32, R.WIDTH, 2);
+        ctx.fillRect(0, y + 30, R.WIDTH, 2);
+        this.text(b.text, 30, R.WIDTH / 2, y, b.color, "center", "middle");
       }
       b.left -= 1;
       if (b.left <= 0) this.banner = null;
     }
   };
 
+  Renderer.prototype.drawBossBar = function (boss, y) {
+    var ctx = this.ctx, x = 10, w = R.WIDTH - 60;
+    this.text(R.BOSS_NAMES[boss.kind], 10, x, y - 13, "#ff9696", "left");
+    if (boss.rage) this.text("RAGE", 10, x + w, y - 13, "#ff5050", "right");
+    ctx.fillStyle = "#3c141e"; ctx.fillRect(x, y, w, 6);
+    ctx.fillStyle = "#ff465a"; ctx.fillRect(x, y, w * Math.max(boss.hp, 0) / boss.maxHp, 6);
+    ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.strokeRect(x + 0.5, y + 0.5, w, 6);
+    {
+      R.PHASE_THRESHOLDS.forEach(function (t) {
+        ctx.beginPath(); ctx.moveTo(x + w * t, y - 2); ctx.lineTo(x + w * t, y + 8); ctx.stroke();
+      });
+      var left = Math.floor(Math.max(0, R.BOSS_PHASE_TIME - boss.phaseTimer) / R.FPS);
+      this.text(("0" + left).slice(-2), 14, R.WIDTH - 8, y - 6, "#ffe696", "right");
+    }
+  };
+
+  // ---- 右邊的資訊面板（彈幕遊戲常見的版面） ----
+  Renderer.prototype.drawPanel = function (world, hud) {
+    var ctx = this.ctx, x0 = R.WIDTH, W = PANEL_W, cx = x0 + W / 2, i, p = world.player;
+    var lx = x0 + 22, rx = x0 + W - 22, self = this;
+    var bg = this.images.bg3;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(x0, 0, W, R.HEIGHT); ctx.clip();
+    if (bg && bg.width) {
+      for (var ty = 0; ty < R.HEIGHT; ty += 256) for (var tx = x0; tx < x0 + W; tx += 256) ctx.drawImage(bg, tx, ty);
+    }
+    ctx.fillStyle = "rgba(10,10,30,0.47)"; ctx.fillRect(x0, 0, W, R.HEIGHT);
+    ctx.restore();
+    ctx.fillStyle = "#14141c"; ctx.fillRect(x0, 0, 8, R.HEIGHT);
+    ctx.fillStyle = "#9696aa"; ctx.fillRect(x0 + 8, 0, 2, R.HEIGHT);
+    ctx.strokeStyle = "#5a5a6e"; ctx.lineWidth = 1;
+    ctx.strokeRect(x0 + 14.5, 90.5, W - 26, 270);
+    ctx.strokeRect(x0 + 14.5, 380.5, W - 26, 230);
+
+    this.text("VERTICAL", 22, cx, 24, "#ffe65a");
+    this.text("SHMUP", 22, cx, 50, "#ffe65a");
+    function row(y, label, value, color) {
+      self.text(label, 13, lx, y, "#aabeff", "left");
+      if (value !== undefined && value !== null) self.text(value, 15, rx, y - 1, color || "#fff", "right");
+    }
+    function pad(n) { return ("000000000" + n).slice(-9); }
+    row(110, "HI-SCORE", pad(Math.max(hud.hiscore || 0, world.score)), "#fff096");
+    row(140, "SCORE", pad(world.score));
+    row(190, "PLAYER");
+    for (i = 0; i < R.PLAYER_MAX_HP; i++) this.sprite("life", lx + 102 + i * 24, 199, 20, 0, i < p.hp ? 1 : 0.25);
+    row(220, "BOMB");
+    for (i = 0; i < R.PLAYER_MAX_BOMBS; i++) this.sprite("item3", lx + 101 + i * 24, 228, 18, 0, i < p.bombs ? 1 : 0.25);
+    row(250, "POWER", p.power >= R.PLAYER_MAX_POWER ? "MAX" : null, "#ffd23c");
+    for (i = 0; i < R.PLAYER_MAX_POWER; i++) {
+      ctx.fillStyle = i < p.power ? "#ffd23c" : "#3c3c50";
+      ctx.fillRect(lx + 92 + i * 22, 255, 18, 8);
+    }
+    row(280, "GRAZE", String(world.graze));
+    row(310, "STAGE", String(world.stage));
+    if (p.shield) this.text("SHIELD ON", 12, lx, 340, "#78c8ff", "left");
+    if (hud.autopilot) {
+      this.text("AUTOPILOT", 15, cx, 400, "#50ff78");
+      this.drawJoystick(cx, 470, hud.action);
+    }
+    if (hud.label) this.text(hud.label, 15, cx, 560, "#ffc878");
+    this.text("DQN AUTOPILOT DEMO", 10, cx, R.HEIGHT - 30, "#6e6e8c");
+  };
+
+  // 3x3 搖桿燈號：亮起來的那格是 AI 選的方向，SLOW 燈表示慢速
+  Renderer.prototype.drawJoystick = function (cx, cy, action) {
+    var ctx = this.ctx, a = action === null || action === undefined ? null : S.Features.ACTIONS[action];
+    for (var gy = -1; gy <= 1; gy++) {
+      for (var gx = -1; gx <= 1; gx++) {
+        var on = a && a[0] === gx && a[1] === gy;
+        var x = cx - 45 + (gx + 1) * 30 - 12, y = cy + gy * 30 - 12;
+        ctx.fillStyle = on ? "#3cdc55" : "#282832"; ctx.fillRect(x, y, 26, 26);
+        ctx.strokeStyle = on ? "#b4ffbe" : "#50505f"; ctx.lineWidth = 2; ctx.strokeRect(x + 1, y + 1, 24, 24);
+      }
+    }
+    var slow = !!(a && a[2]);
+    ctx.fillStyle = slow ? "#ff9628" : "#282832"; ctx.fillRect(cx + 60, cy - 12, 52, 24);
+    ctx.strokeStyle = "#5a5a64"; ctx.strokeRect(cx + 61, cy - 11, 50, 22);
+    this.text("SLOW", 11, cx + 86, cy, slow ? "#000" : "#6e6e78", "center", "middle");
+  };
+
+  Renderer.PANEL_W = PANEL_W;
   S.Renderer = Renderer;
 })(this.Shmup = this.Shmup || {});

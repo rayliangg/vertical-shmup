@@ -19,6 +19,7 @@ REWARD_SHIELD_LOST = -0.3
 REWARD_PICKUP = 0.05
 REWARD_PER_SCORE = 0.0002       # 100 分 -> +0.02
 REWARD_DEATH = -1.0
+REWARD_CLEAR = 5.0              # 打倒最後一關的兩隻魔王（ALL CLEAR）
 
 
 class ShmupEnv:
@@ -27,7 +28,7 @@ class ShmupEnv:
     observation_size = OBS_DIM
     action_count = N_ACTIONS
 
-    def __init__(self, seed=0, max_steps=9000):
+    def __init__(self, seed=0, max_steps=15000):
         self.world = World(seed)
         self.seed = seed
         self.episode = 0
@@ -67,9 +68,13 @@ class ShmupEnv:
         reward += REWARD_HP_LOST * hp_lost + REWARD_PER_SCORE * (w.score - score0)
         terminated = w.done
         if terminated:
-            reward += REWARD_DEATH
+            if w.player.hp <= 0:
+                reward += REWARD_DEATH
+            elif w.cleared:
+                reward += REWARD_CLEAR
         truncated = not terminated and self.t >= self.max_steps
-        info = {"hp_lost": hp_lost, "score": w.score, "stage": w.stage, "t": self.t}
+        info = {"hp_lost": hp_lost, "score": w.score, "stage": w.stage, "t": self.t,
+                "cleared": w.cleared}
         return self._obs(), reward, terminated, truncated, info
 
 
@@ -92,7 +97,7 @@ def _stack(results):
 
 
 class SyncVectorEnv:
-    def __init__(self, n, seed=0, max_steps=9000):
+    def __init__(self, n, seed=0, max_steps=15000):
         self.envs = [ShmupEnv(seed * 10007 + i, max_steps) for i in range(n)]
         self.n = n
 
@@ -126,7 +131,7 @@ def _worker(conn, seeds, max_steps):
 class SubprocVectorEnv:
     """把 n 個環境分散到 `workers` 個程序（遊戲邏輯是吃 CPU 的 Python）。"""
 
-    def __init__(self, n, workers, seed=0, max_steps=9000):
+    def __init__(self, n, workers, seed=0, max_steps=15000):
         workers = max(1, min(workers, n))
         seeds = [seed * 10007 + i for i in range(n)]
         chunks = [seeds[i::workers] for i in range(workers)]
@@ -164,7 +169,7 @@ class SubprocVectorEnv:
             p.join(timeout=2)
 
 
-def make_vector_env(n, workers=0, seed=0, max_steps=9000):
+def make_vector_env(n, workers=0, seed=0, max_steps=15000):
     if workers > 1:
         return SubprocVectorEnv(n, workers, seed, max_steps)
     return SyncVectorEnv(n, seed, max_steps)

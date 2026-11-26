@@ -11,6 +11,9 @@ dist/
 models/*
 !models/.gitkeep
 
+# 錄影輸出（檔案很大，不放進 git）
+videos/
+
 # Personal notes (not part of the repo)
 README2.md
 

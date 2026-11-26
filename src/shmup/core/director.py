@@ -1,32 +1,26 @@
 """決定什麼時候出什麼敵人。
 
-一關的流程：雜魚波次 -> 中魔王（Sentinel）-> 雜魚波次 -> WARNING -> 關卡魔王。
-關卡魔王輪流出現：Warden -> Hive Carrier -> Twin Fang，每輪一次會變更強。
+一關的流程：雜魚波次（約 60 秒）-> WARNING -> 魔王。
+第 1 關 Warden、第 2 關 Hive Carrier、第 3 關（最後一關）兩隻 Twin Fang。
 """
 import math
 
 from . import rules as R
 from .enemies import ENTRY_Y, Enemy
 
-IDLE, WARNING, BOSS_FIGHT, MIDBOSS = 0, 1, 2, 3
+IDLE, WARNING, BOSS_FIGHT = 0, 1, 2
 
 
 class Director:
-    __slots__ = ("state", "wave_timer", "warn_timer", "midboss_spawned")
+    __slots__ = ("state", "wave_timer", "warn_timer")
 
     def __init__(self):
         self.state = IDLE
         self.wave_timer = 90
         self.warn_timer = 0
-        self.midboss_spawned = False
 
     def update(self, w):
         if self.state == IDLE:
-            if not self.midboss_spawned and w.stage_frame >= R.MIDBOSS_TIME:
-                self.midboss_spawned = True
-                self.state = MIDBOSS
-                w.enemies.append(self._boss(w, "midboss", R.WIDTH / 2))
-                return
             if w.stage_frame >= R.BOSS_TIME:
                 self.state = WARNING
                 self.warn_timer = R.BOSS_WARNING_FRAMES
@@ -37,17 +31,15 @@ class Director:
                 self.spawn_wave(w)
                 base = max(R.WAVE_INTERVAL_MIN, R.WAVE_INTERVAL_START / w.difficulty)
                 self.wave_timer = int(math.floor(base * w.rng.uniform(0.8, 1.2)))
-        elif self.state == MIDBOSS:
-            for e in w.enemies:
-                if e.kind == "midboss" and e.alive:
-                    return
-            self.state = IDLE
-            self.wave_timer = 90
         elif self.state == WARNING:
             self.warn_timer -= 1
             if self.warn_timer <= 0:
-                kind = R.BOSS_ORDER[(w.stage - 1) % len(R.BOSS_ORDER)]
-                w.enemies.append(self._boss(w, kind, R.WIDTH / 2))
+                kind = R.BOSS_ORDER[min(w.stage, R.FINAL_STAGE) - 1]
+                if R.BOSS_COUNT.get(kind, 1) == 2:        # 雙魔王：一左一右
+                    w.enemies.append(self._boss(w, kind, R.WIDTH / 2 - R.TWIN_OFFSET))
+                    w.enemies.append(self._boss(w, kind, R.WIDTH / 2 + R.TWIN_OFFSET))
+                else:
+                    w.enemies.append(self._boss(w, kind, R.WIDTH / 2))
                 self.state = BOSS_FIGHT
 
     @staticmethod
@@ -60,10 +52,9 @@ class Director:
         return e
 
     def boss_defeated(self):
-        """關卡魔王被打倒或逃走：開始下一關。"""
+        """魔王被打倒或逃走：開始下一關。"""
         self.state = IDLE
         self.wave_timer = 150
-        self.midboss_spawned = False
 
     # -- 雜魚波次 ----------------------------------------------------------
     def spawn_wave(self, w):

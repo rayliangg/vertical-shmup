@@ -12,11 +12,13 @@
     cancel     敵彈被消掉（炸彈 / 打倒魔王）     值：None
     graze      子彈擦過玩家身邊                  值：None
     pickup     撿到道具                          值：道具種類
-    warning    關卡魔王快要出現                  值：關卡
+    warning    魔王快要出現                      值：關卡
     boss       魔王進場完畢                      值：敵人種類
     phase      魔王進入新的攻擊階段              值：(種類, 階段 0-2)
-    boss_down  關卡魔王被打倒，進入下一關        值：新的關卡
-    escape     關卡魔王撐過最後階段後逃走        值：新的關卡
+    boss_down  魔王被打倒，進入下一關            值：新的關卡
+    escape     魔王撐過最後階段後逃走            值：新的關卡
+    rage       雙魔王其中一台倒下，另一台暴走    值：敵人種類
+    clear      最後一關結束，遊戲結束            值：是否打倒魔王（ALL CLEAR）
     gameover   玩家沒血了                        值：分數
 """
 from . import rules as R
@@ -49,6 +51,7 @@ class World:
         self.score = 0
         self.graze = 0
         self.done = False
+        self.cleared = False         # 是否打倒最後一關的魔王（ALL CLEAR）
 
     # -- 推算出來的數值 --------------------------------------------------
     @property
@@ -94,7 +97,8 @@ class World:
 
         self.director.update(self)
         for e in list(self.enemies):
-            e.update(self)
+            if e.alive:
+                e.update(self)
         for s in self.shots:
             s.update()
         for b in self.bullets:
@@ -141,15 +145,17 @@ class World:
         self.emit("explode", e.x, e.y, e.kind)
         rng = self.rng
         if e.is_boss:
-            drops = R.MIDBOSS_ITEM_DROPS if e.kind == "midboss" else R.BOSS_ITEM_DROPS
-            for _ in range(drops):
+            for _ in range(R.BOSS_ITEM_DROPS):
                 x = e.x + rng.uniform(-60, 60)
                 y = e.y + rng.uniform(-30, 30)
                 self.items.append(Item(x, y, rng.weighted(ITEM_CHOICES)))
             self._cancel_bullets()
-            if e.kind != "midboss":
-                self._next_stage()
-                self.emit("boss_down", e.x, e.y, self.stage)
+            if self._last_stage_boss(e):
+                if self.stage >= R.FINAL_STAGE:
+                    self._all_clear(e, True)
+                else:
+                    self._next_stage()
+                    self.emit("boss_down", e.x, e.y, self.stage)
             return
         if e.drop > 0 and rng.chance(e.drop):
             self.items.append(Item(e.x, e.y, rng.weighted(ITEM_CHOICES)))
@@ -172,8 +178,29 @@ class World:
     def boss_escaped(self, e):
         e.alive = False
         self._cancel_bullets()
-        self._next_stage()
-        self.emit("escape", e.x, e.y, self.stage)
+        if self._last_stage_boss(e):
+            if self.stage >= R.FINAL_STAGE:
+                self._all_clear(e, False)
+            else:
+                self._next_stage()
+                self.emit("escape", e.x, e.y, self.stage)
+
+    def _last_stage_boss(self, gone):
+        """`gone` 是不是最後一台關卡魔王？不是的話，剩下的魔王會暴走。"""
+        others = [o for o in self.enemies if o is not gone and o.alive and o.is_boss]
+        for o in others:
+            if not o.rage:
+                o.rage = True
+                self.emit("rage", o.x, o.y, o.kind)
+        return not others
+
+    def _all_clear(self, e, defeated):
+        """最後一關的魔王都打倒（或逃走）了：遊戲結束。打倒的話有通關獎勵。"""
+        if defeated:
+            self.cleared = True
+            self.score += R.CLEAR_BONUS + R.CLEAR_BONUS_PER_HP * self.player.hp
+        self.done = True
+        self.emit("clear", e.x, e.y, defeated)
 
     def _next_stage(self):
         self.stage += 1

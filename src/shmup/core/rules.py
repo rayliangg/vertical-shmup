@@ -71,28 +71,25 @@ ENEMIES = {
     "meteor_medium": {"hp": 3, "radius": 15.0, "score": 30, "drop": 0.05},
     "meteor_small": {"hp": 1, "radius": 9.0, "score": 10, "drop": 0.0},
     # 魔王（"boss": True 會顯示血條，而且出現時雜魚會暫停）
-    "midboss": {"hp": 120, "radius": 32.0, "score": 3000, "drop": 1.0, "boss": True},
     "boss_warden": {"hp": 360, "radius": 50.0, "score": 10000, "drop": 1.0, "boss": True},
     "boss_carrier": {"hp": 420, "radius": 46.0, "score": 12000, "drop": 1.0, "boss": True},
-    "boss_fang": {"hp": 400, "radius": 44.0, "score": 15000, "drop": 1.0, "boss": True},
+    "boss_fang": {"hp": 260, "radius": 44.0, "score": 9000, "drop": 1.0, "boss": True},
 }
 BOSS_HP_PER_STAGE = 0.30            # 第 2 關開始，每多一關魔王 HP +30%
 BOSS_ITEM_DROPS = 8
-MIDBOSS_ITEM_DROPS = 3
 
 # --- 魔王關卡 --------------------------------------------------------------
-# 每一關：雜魚 -> 中魔王 -> 雜魚 -> WARNING -> 關卡魔王（3 個階段）。
-# 關卡魔王輪流出現：Warden -> Carrier -> Fang -> Warden（更強）-> ...
+# 每一關：雜魚波次 -> WARNING -> 魔王（3 個階段）。一共 3 關：
+#   第 1 關 Warden（1 隻）、第 2 關 Hive Carrier（1 隻）、第 3 關（最後一關）Twin Fang（2 隻）。
+# 打倒最後一關的魔王就 ALL CLEAR，遊戲結束。
 BOSS_ORDER = ("boss_warden", "boss_carrier", "boss_fang")
 BOSS_NAMES = {
-    "midboss": "SENTINEL",
     "boss_warden": "WARDEN",
     "boss_carrier": "HIVE CARRIER",
     "boss_fang": "TWIN FANG",
 }
 # 每個階段的名稱會顯示在畫面上，類似彈幕遊戲的「符卡」。
 PHASE_NAMES = {
-    "midboss": ("Ring Guard", "Ring Guard", "Ring Guard"),
     "boss_warden": ("Aimed Fans", "Twin Spiral", "Last Stand"),
     "boss_carrier": ("Drone Bay", "Bloom", "Laser Rain"),
     "boss_fang": ("Crossfire", "Pinwheel", "Fang Rush"),
@@ -100,15 +97,20 @@ PHASE_NAMES = {
 PHASE_THRESHOLDS = (0.66, 0.33)     # HP 剩多少比例時進入第 2、第 3 階段
 BOSS_PHASE_TIME = 1800              # 撐過 30 秒這個階段就時間到（沒有獎勵分）
 PHASE_BONUS = 1000                  # 時間內打破一個階段的獎勵分
-MIDBOSS_TIME = 1500                 # 每關開始後第幾個 frame 出現中魔王
-MIDBOSS_ESCAPE = 1500               # 中魔王停留幾個 frame 後會飛走
 MAX_DRONES = 6                      # Hive Carrier 放出的無人機在畫面上最多幾隻
+# 同時出場的魔王數量：Twin Fang 是兩台一起出現的雙魔王
+BOSS_COUNT = {"boss_fang": 2}
+TWIN_OFFSET = 110.0                 # 雙魔王離畫面中線的距離
+RAGE_SPEEDUP = 2.0                  # 雙魔王其中一台被打倒後，另一台的射速倍率
+FINAL_STAGE = 3                     # 最後一關
+CLEAR_BONUS = 20000                 # ALL CLEAR 獎勵分
+CLEAR_BONUS_PER_HP = 5000           # 通關時每剩 1 滴血再加的分數
 ENEMY_CONTACT_SCALE = 0.8           # 敵人的碰撞範圍比圖片小一點
 
 # --- Director（出怪控制） -----------------------------------------------
 WAVE_INTERVAL_START = 150
 WAVE_INTERVAL_MIN = 55
-BOSS_TIME = 4200                    # 每關開始後第幾個 frame 出現魔王警告
+BOSS_TIME = 3600                    # 每關開始後第幾個 frame（60 秒）出現魔王警告
 BOSS_WARNING_FRAMES = 150
 DIFFICULTY_PER_STAGE = 0.25
 DIFFICULTY_IN_STAGE = 0.35          # 魔王出現前難度會再往上加這麼多

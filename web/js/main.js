@@ -74,30 +74,15 @@
     Array.prototype.forEach.call(document.querySelectorAll("[data-speed]"), function (b) {
       b.onclick = function () { setSpeed(Number(b.getAttribute("data-speed"))); canvas.focus(); };
     });
-    // 3x3 的搖桿格子，亮起來的那格就是 AI 選的方向
-    var arrows = ["↖", "↑", "↗", "←", "●", "→", "↙", "↓", "↘"], joy = $("joy");
-    for (var i = 0; i < 9; i++) {
-      var cell = document.createElement("span");
-      cell.id = "joy" + i;
-      cell.textContent = arrows[i];
-      joy.appendChild(cell);
-    }
   }
 
   function updatePanel() {
-    $("stat-score").textContent = world.score;
-    $("stat-stage").textContent = world.stage;
-    $("stat-best").textContent = state.best;
     var runs = state.runs;
     $("stat-runs").textContent = runs.length;
     $("stat-avg").textContent = runs.length
       ? Math.round(runs.reduce(function (s, r) { return s + r; }, 0) / runs.length) : "-";
     var o = state.overlay, on = state.autopilot && o && o.q;
-    var a = on ? F.ACTIONS[o.action] : null;
-    var lit = a ? (a[1] + 1) * 3 + (a[0] + 1) : -1;
-    for (var i = 0; i < 9; i++) $("joy" + i).classList.toggle("lit", i === lit);
-    $("joy-slow").classList.toggle("lit", !!(a && a[2]));
-    $("joy-q").textContent = on ? "Q " + o.q[o.action].toFixed(2) : "--";
+    $("joy-q").textContent = on ? o.q[o.action].toFixed(2) : "--";
   }
 
   // ------------------------------------------------------------- 遊戲流程
@@ -112,10 +97,9 @@
   // demo 用的捷徑：跳過雜魚直接打魔王（也可以跳到下一關的魔王）。
   function jumpToBoss(extraStages) {
     if (state.scene !== "playing") newGame();
-    world.stage += extraStages;
+    world.stage = Math.min(world.stage + extraStages, R.FINAL_STAGE);
     world.enemies = world.enemies.filter(function (e) { return !e.isBoss; });
     world.director.state = S.Director.IDLE;
-    world.director.midbossSpawned = true;
     world.stageFrame = R.BOSS_TIME - 1;
   }
 
@@ -152,9 +136,14 @@
     }
   }
 
+  function hud() {
+    return { hiscore: state.best, autopilot: state.autopilot,
+             action: state.autopilot ? state.action : null };
+  }
+
   function drawTitle() {
     var ctx = renderer.ctx;
-    renderer.draw(world, null);
+    renderer.draw(world, null, hud());
     ctx.fillStyle = "rgba(10,8,30,0.6)";
     ctx.fillRect(0, 0, R.WIDTH, R.HEIGHT);
     renderer.text("VERTICAL", 44, R.WIDTH / 2, 150, "#ffe65a", "center", "middle");
@@ -171,13 +160,13 @@
 
   function draw() {
     if (state.scene === "title") { drawTitle(); return; }
-    renderer.draw(world, state.overlay);
-    if (state.autopilot) renderer.text("AUTOPILOT (DQN)", 12, R.WIDTH / 2, R.HEIGHT - 24, "#50ff78");
+    renderer.draw(world, state.overlay, hud());
     if (state.speed > 1) renderer.text("x" + state.speed, 12, R.WIDTH - 8, R.HEIGHT - 24, "#fff", "right");
     if (state.scene === "paused") {
       renderer.text("PAUSED", 34, R.WIDTH / 2, R.HEIGHT / 2, "#fff", "center", "middle");
     } else if (state.scene === "over") {
-      renderer.text("GAME OVER", 38, R.WIDTH / 2, R.HEIGHT / 2 - 40, "#ff5a5a", "center", "middle");
+      renderer.text(world.cleared ? "ALL CLEAR!" : (world.player.hp > 0 ? "THE END" : "GAME OVER"), 38,
+                    R.WIDTH / 2, R.HEIGHT / 2 - 40, world.cleared ? "#ffe65a" : "#ff5a5a", "center", "middle");
       renderer.text("SCORE " + world.score, 18, R.WIDTH / 2, R.HEIGHT / 2 + 10, "#fff", "center", "middle");
       renderer.text("ENTER  retry", 14, R.WIDTH / 2, R.HEIGHT / 2 + 80, "#fff", "center", "middle");
     }

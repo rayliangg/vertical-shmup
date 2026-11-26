@@ -10,21 +10,14 @@
   <div class="cabinet">
     <header class="marquee">
       <h1>VERTICAL SHMUP</h1>
-      <p>INSERT COIN &mdash; 或交給 AI 來玩</p>
     </header>
 
     <div class="cabinet-body">
       <div class="bezel">
-        <canvas id="game" width="480" height="720" tabindex="0" aria-label="遊戲畫面"></canvas>
+        <canvas id="game" width="760" height="720" tabindex="0" aria-label="遊戲畫面"></canvas>
       </div>
 
       <aside class="console">
-        <div class="score-box">
-          <div><span class="lbl">1P</span><span id="stat-score" class="num">0</span></div>
-          <div><span class="lbl">HI</span><span id="stat-best" class="num">0</span></div>
-          <div><span class="lbl">STAGE</span><span id="stat-stage" class="num">1</span></div>
-        </div>
-
         <div class="btn-row">
           <button id="btn-play" class="arcade green">自己玩</button>
           <button id="btn-autopilot" class="arcade blue">AI 開車</button>
@@ -42,15 +35,9 @@
         </div>
 
         <div class="ai-box">
-          <div class="ai-title">AI 現在想往哪走</div>
-          <div class="joy">
-            <div class="joy-grid" id="joy"></div>
-            <div class="joy-side">
-              <div class="lamp" id="joy-slow">SLOW</div>
-              <div class="joy-q" id="joy-q">--</div>
-            </div>
-          </div>
+          <div class="ai-title">AI 模型</div>
           <p class="ai-note" id="model-info"></p>
+          <p class="ai-note">AI 現在的 Q 值：<b id="joy-q">--</b></p>
           <p class="ai-note">AI 跑了 <b id="stat-runs">0</b> 局，平均 <b id="stat-avg">-</b> 分</p>
         </div>
 

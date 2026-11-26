@@ -131,6 +131,7 @@
     this.isBoss = spec.boss === true;
     this.phaseIndex = 0;
     this.phaseTimer = 0;
+    this.rage = false;
   }
   Enemy.prototype.damageable = function () { return this.y > 10; };
   Enemy.prototype.update = function (w) {
@@ -225,7 +226,7 @@
   }
 
   // ---------------------------------------------------------------- 魔王
-  var ENTRY_Y = { midboss: 120.0, boss_warden: 130.0, boss_carrier: 150.0, boss_fang: 120.0 };
+  var ENTRY_Y = { boss_warden: 130.0, boss_carrier: 150.0, boss_fang: 120.0 };
 
   function sway(e, center, amp, speed) {
     e.phase += speed;
@@ -357,10 +358,12 @@
   function fang(e, w) {
     if (!bossPhases(e, w)) return;
     var bs = w.bulletSpeed(), d = w.difficulty(), a, k;
+    if (e.rage) d = d * R.RAGE_SPEEDUP;
+    var side = e.homeX < R.WIDTH / 2 ? -1.0 : 1.0;
     if (e.phaseIndex < 2) {
-      sway(e, R.WIDTH / 2, 160, 0.02);
+      sway(e, e.homeX, 80, 0.02);
     } else {
-      e.vx = Math.min(Math.max(w.player.x - e.x, -3.0), 3.0);
+      e.vx = Math.min(Math.max(w.player.x + side * 60 - e.x, -3.0), 3.0);
       e.x += e.vx;
     }
     if (e.phaseIndex === 0) {
@@ -384,7 +387,7 @@
           single(w.bullets, e.x, e.y, -e.amp + k * HALF_PI + 0.4, 2.2 * bs);
         }
         e.amp += 0.17;
-        e.fireTimer = 8;
+        e.fireTimer = interval(24, d);
       }
     } else {
       if (e.fireTimer <= 0) {
@@ -400,49 +403,20 @@
     }
   }
 
-  function midboss(e, w) {
-    if (e.state === 0) {
-      e.y += 2.0;
-      if (e.y >= e.targetY) { e.state = 1; w.emit("boss", e.x, e.y, e.kind); }
-      return;
-    }
-    if (e.state === 2) {
-      e.y += e.vy;
-      if (e.y < -60) e.alive = false;
-      return;
-    }
-    sway(e, e.homeX, 80, 0.015);
-    var bs = w.bulletSpeed(), d = w.difficulty();
-    e.fireTimer -= 1;
-    if (e.fireTimer <= 0) {
-      ring(w.bullets, e.x, e.y, 14, 2.2 * bs, e.amp);
-      e.amp += 0.31;
-      e.fireTimer = interval(45, d);
-    }
-    e.altTimer -= 1;
-    if (e.altTimer <= 0) {
-      fan(w.bullets, e.x, e.y + 20, aimAngle(e.x, e.y, w.player), 3.6 * bs, 3, 0.3);
-      e.altTimer = interval(25, d);
-    }
-    e.timer += 1;
-    if (e.timer >= R.MIDBOSS_ESCAPE) { e.state = 2; e.vx = 0; e.vy = -2.0; }
-  }
-
   var UPDATERS = {
     scout: scout, weaver: weaver, diver: diver, gunship: gunship,
     meteor_big: meteor, meteor_medium: meteor, meteor_small: meteor,
-    midboss: midboss, boss_warden: warden, boss_carrier: carrier, boss_fang: fang
+    boss_warden: warden, boss_carrier: carrier, boss_fang: fang
   };
   var SPLITS = { meteor_big: "meteor_medium", meteor_medium: "meteor_small" };
 
   // ---------------------------------------------------------------- 出怪控制
-  var IDLE = 0, WARNING = 1, BOSS_FIGHT = 2, MIDBOSS = 3;
+  var IDLE = 0, WARNING = 1, BOSS_FIGHT = 2;
 
   function Director() {
     this.state = IDLE;
     this.waveTimer = 90;
     this.warnTimer = 0;
-    this.midbossSpawned = false;
   }
 
   function spawnBoss(w, kind, x) {
@@ -457,12 +431,6 @@
 
   Director.prototype.update = function (w) {
     if (this.state === IDLE) {
-      if (!this.midbossSpawned && w.stageFrame >= R.MIDBOSS_TIME) {
-        this.midbossSpawned = true;
-        this.state = MIDBOSS;
-        w.enemies.push(spawnBoss(w, "midboss", R.WIDTH / 2));
-        return;
-      }
       if (w.stageFrame >= R.BOSS_TIME) {
         this.state = WARNING;
         this.warnTimer = R.BOSS_WARNING_FRAMES;
@@ -475,17 +443,16 @@
         var base = Math.max(R.WAVE_INTERVAL_MIN, R.WAVE_INTERVAL_START / w.difficulty());
         this.waveTimer = Math.floor(base * w.rng.uniform(0.8, 1.2));
       }
-    } else if (this.state === MIDBOSS) {
-      for (var i = 0; i < w.enemies.length; i++) {
-        if (w.enemies[i].kind === "midboss" && w.enemies[i].alive) return;
-      }
-      this.state = IDLE;
-      this.waveTimer = 90;
     } else if (this.state === WARNING) {
       this.warnTimer -= 1;
       if (this.warnTimer <= 0) {
-        var kind = R.BOSS_ORDER[(w.stage - 1) % R.BOSS_ORDER.length];
-        w.enemies.push(spawnBoss(w, kind, R.WIDTH / 2));
+        var kind = R.BOSS_ORDER[Math.min(w.stage, R.FINAL_STAGE) - 1];
+        if ((R.BOSS_COUNT[kind] || 1) === 2) {
+          w.enemies.push(spawnBoss(w, kind, R.WIDTH / 2 - R.TWIN_OFFSET));
+          w.enemies.push(spawnBoss(w, kind, R.WIDTH / 2 + R.TWIN_OFFSET));
+        } else {
+          w.enemies.push(spawnBoss(w, kind, R.WIDTH / 2));
+        }
         this.state = BOSS_FIGHT;
       }
     }
@@ -494,7 +461,6 @@
   Director.prototype.bossDefeated = function () {
     this.state = IDLE;
     this.waveTimer = 150;
-    this.midbossSpawned = false;
   };
 
   Director.prototype.spawnWave = function (w) {
@@ -583,6 +549,7 @@
     this.score = 0;
     this.graze = 0;
     this.done = false;
+    this.cleared = false;
   };
 
   World.prototype.difficulty = function () {
@@ -622,7 +589,7 @@
 
     this.director.update(this);
     var snapshot = this.enemies.slice();
-    for (i = 0; i < snapshot.length; i++) snapshot[i].update(this);
+    for (i = 0; i < snapshot.length; i++) if (snapshot[i].alive) snapshot[i].update(this);
     for (i = 0; i < this.shots.length; i++) this.shots[i].update();
     for (i = 0; i < this.bullets.length; i++) this.bullets[i].update();
     for (i = 0; i < this.items.length; i++) this.items[i].update(p);
@@ -668,16 +635,19 @@
     this.emit("explode", e.x, e.y, e.kind);
     var rng = this.rng, i;
     if (e.isBoss) {
-      var drops = e.kind === "midboss" ? R.MIDBOSS_ITEM_DROPS : R.BOSS_ITEM_DROPS;
-      for (i = 0; i < drops; i++) {
+      for (i = 0; i < R.BOSS_ITEM_DROPS; i++) {
         var x = e.x + rng.uniform(-60, 60);
         var y = e.y + rng.uniform(-30, 30);
         this.items.push(new Item(x, y, rng.weighted(ITEM_CHOICES)));
       }
       this.cancelBullets(null);
-      if (e.kind !== "midboss") {
-        this.nextStage();
-        this.emit("boss_down", e.x, e.y, this.stage);
+      if (this.lastStageBoss(e)) {
+        if (this.stage >= R.FINAL_STAGE) {
+          this.allClear(e, true);
+        } else {
+          this.nextStage();
+          this.emit("boss_down", e.x, e.y, this.stage);
+        }
       }
       return;
     }
@@ -705,8 +675,36 @@
   World.prototype.bossEscaped = function (e) {
     e.alive = false;
     this.cancelBullets(null);
-    this.nextStage();
-    this.emit("escape", e.x, e.y, this.stage);
+    if (this.lastStageBoss(e)) {
+      if (this.stage >= R.FINAL_STAGE) {
+        this.allClear(e, false);
+      } else {
+        this.nextStage();
+        this.emit("escape", e.x, e.y, this.stage);
+      }
+    }
+  };
+
+  World.prototype.lastStageBoss = function (gone) {
+    var others = this.enemies.filter(function (o) {
+      return o !== gone && o.alive && o.isBoss;
+    });
+    for (var i = 0; i < others.length; i++) {
+      if (!others[i].rage) {
+        others[i].rage = true;
+        this.emit("rage", others[i].x, others[i].y, others[i].kind);
+      }
+    }
+    return others.length === 0;
+  };
+
+  World.prototype.allClear = function (e, defeated) {
+    if (defeated) {
+      this.cleared = true;
+      this.score += R.CLEAR_BONUS + R.CLEAR_BONUS_PER_HP * this.player.hp;
+    }
+    this.done = true;
+    this.emit("clear", e.x, e.y, defeated);
   };
 
   World.prototype.nextStage = function () {
@@ -822,5 +820,5 @@
   };
 
   S.World = World;
-  S.Director = { IDLE: IDLE, WARNING: WARNING, BOSS_FIGHT: BOSS_FIGHT, MIDBOSS: MIDBOSS };
+  S.Director = { IDLE: IDLE, WARNING: WARNING, BOSS_FIGHT: BOSS_FIGHT };
 })(this.Shmup = this.Shmup || {});

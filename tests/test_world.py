@@ -65,3 +65,21 @@ def test_game_over():
     w.bullets = [Bullet(p.x, p.y, 0.0, 0.0)]
     w.step()
     assert w.done
+
+
+def test_three_stages_then_all_clear():
+    """第 1、2 關各一隻魔王，最後一關兩隻；兩隻都打倒就 ALL CLEAR。"""
+    w = World(7)
+    seen = []
+    for stage in (1, 2, 3):
+        w.stage, w.stage_frame = stage, R.BOSS_TIME - 1
+        for _ in range(R.BOSS_WARNING_FRAMES + 200):
+            w.step()
+            w.player.hp = R.PLAYER_MAX_HP
+        bosses = [e for e in w.enemies if e.is_boss]
+        seen.append(len(bosses))
+        for b in bosses:
+            w.damage_enemy(b, 10 ** 6)
+        w.enemies = [e for e in w.enemies if e.alive]
+    assert seen == [1, 1, 2]
+    assert w.done and w.cleared

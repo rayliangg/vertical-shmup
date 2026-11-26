@@ -15,7 +15,7 @@ body {
 
 /* ---- 機台外框 ---- */
 .cabinet {
-  width: 860px;
+  width: 1110px;
   max-width: 100%;
   margin: 20px auto;
   background: #1b1b1b;
@@ -55,7 +55,7 @@ body {
 }
 .bezel canvas {
   display: block;
-  width: 480px;
+  width: 760px;
   max-width: calc(100vw - 80px);
   height: auto;
   outline: none;

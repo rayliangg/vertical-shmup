@@ -15,7 +15,7 @@ class Enemy:
     __slots__ = ("kind", "x", "y", "vx", "vy", "hp", "max_hp", "radius", "score",
                  "drop", "age", "alive", "state", "timer", "fire_timer", "alt_timer",
                  "home_x", "amp", "phase", "target_y", "flash", "is_boss",
-                 "phase_index", "phase_timer")
+                 "phase_index", "phase_timer", "rage")
 
     def __init__(self, kind, x, y, vx=0.0, vy=0.0, hp=None):
         spec = R.ENEMIES[kind]
@@ -39,6 +39,7 @@ class Enemy:
         self.is_boss = spec.get("boss", False)
         self.phase_index = 0        # 魔王階段 0 / 1 / 2
         self.phase_timer = 0        # 目前這個階段已經過了幾個 frame
+        self.rage = False           # 雙魔王的另一台被打倒後會暴走
 
     @property
     def damageable(self):
@@ -143,7 +144,7 @@ def _meteor(e, w):
 
 # --- 魔王 -------------------------------------------------------------------
 TAU = 2 * math.pi
-ENTRY_Y = {"midboss": 120.0, "boss_warden": 130.0, "boss_carrier": 150.0, "boss_fang": 120.0}
+ENTRY_Y = {"boss_warden": 130.0, "boss_carrier": 150.0, "boss_fang": 120.0}
 
 
 def _sway(e, center, amp, speed):
@@ -155,7 +156,7 @@ def _sway(e, center, amp, speed):
 
 
 def _boss_phases(e, w):
-    """所有關卡魔王共用的部分：進場、換階段、階段時間到。
+    """所有魔王共用的部分：進場、換階段、階段時間到。
 
     魔王還在進場（還不能開火）的時候回傳 False。
     """
@@ -264,14 +265,20 @@ def _carrier(e, w):
 
 
 def _fang(e, w):
-    """第 3 關魔王：雙砲交叉火力 -> 反向旋轉風車彈 -> 追著玩家跑。"""
+    """第 3 關的雙魔王（兩台一起出場）：交叉火力 -> 反向風車彈 -> 追著玩家跑。
+
+    兩台各自有自己的 HP 和階段；其中一台被打倒後，另一台會暴走（射速變快）。
+    """
     if not _boss_phases(e, w):
         return
     bs, d = w.bullet_speed, w.difficulty
+    if e.rage:
+        d = d * R.RAGE_SPEEDUP
+    side = -1.0 if e.home_x < R.WIDTH / 2 else 1.0
     if e.phase_index < 2:
-        _sway(e, R.WIDTH / 2, 160, 0.02)
-    else:                                            # Fang Rush：跟著玩家的 x 座標移動
-        e.vx = min(max(w.player.x - e.x, -3.0), 3.0)
+        _sway(e, e.home_x, 80, 0.02)
+    else:                                            # Fang Rush：跟著玩家的 x 座標移動（兩台一左一右夾擊）
+        e.vx = min(max(w.player.x + side * 60 - e.x, -3.0), 3.0)
         e.x += e.vx
     if e.phase_index == 0:
         if e.fire_timer <= 0:
@@ -290,7 +297,7 @@ def _fang(e, w):
                 patterns.single(w.bullets, e.x, e.y, e.amp + k * HALF_PI, 2.6 * bs)
                 patterns.single(w.bullets, e.x, e.y, -e.amp + k * HALF_PI + 0.4, 2.2 * bs)
             e.amp += 0.17
-            e.fire_timer = 8
+            e.fire_timer = interval(24, d)
     else:
         if e.fire_timer <= 0:
             patterns.ring(w.bullets, e.x, e.y, 18, 2.0 * bs, e.amp, "big")
@@ -302,36 +309,6 @@ def _fang(e, w):
             e.alt_timer = 8
 
 
-def _midboss(e, w):
-    """中魔王：環形彈 + 自機狙；時間內沒打倒就會飛走。"""
-    if e.state == 0:
-        e.y += 2.0
-        if e.y >= e.target_y:
-            e.state = 1
-            w.emit("boss", e.x, e.y, e.kind)
-        return
-    if e.state == 2:
-        e.y += e.vy
-        if e.y < -60:
-            e.alive = False
-        return
-    _sway(e, e.home_x, 80, 0.015)
-    bs, d = w.bullet_speed, w.difficulty
-    e.fire_timer -= 1
-    if e.fire_timer <= 0:
-        patterns.ring(w.bullets, e.x, e.y, 14, 2.2 * bs, e.amp)
-        e.amp += 0.31
-        e.fire_timer = interval(45, d)
-    e.alt_timer -= 1
-    if e.alt_timer <= 0:
-        a = patterns.aim_angle(e.x, e.y, w.player)
-        patterns.fan(w.bullets, e.x, e.y + 20, a, 3.6 * bs, 3, 0.3)
-        e.alt_timer = interval(25, d)
-    e.timer += 1
-    if e.timer >= R.MIDBOSS_ESCAPE:
-        e.state, e.vx, e.vy = 2, 0.0, -2.0
-
-
 UPDATERS = {
     "scout": _scout,
     "weaver": _weaver,
@@ -340,7 +317,6 @@ UPDATERS = {
     "meteor_big": _meteor,
     "meteor_medium": _meteor,
     "meteor_small": _meteor,
-    "midboss": _midboss,
     "boss_warden": _warden,
     "boss_carrier": _carrier,
     "boss_fang": _fang,

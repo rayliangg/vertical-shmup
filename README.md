@@ -75,21 +75,35 @@ python -m shmup --autopilot     # 看 DQN 自己玩（要先訓練好模型）
 
 ### 魔王關卡
 
-每一關的流程：
+遊戲一共 3 關，每一關都是「雜魚波次（約 60 秒）→ WARNING → 魔王」。
+前兩關各一隻魔王，**最後一關是兩隻魔王同時出場**：
 
 ```
-雜魚波次 → 中魔王 SENTINEL（約 25 秒）→ 雜魚波次 → WARNING → 關卡魔王（3 個階段）→ 下一關
+第 1 關：雜魚 → WARDEN（1 隻）
+第 2 關：雜魚 → HIVE CARRIER（1 隻）
+第 3 關：雜魚 → TWIN FANG（2 隻，一左一右）→ ALL CLEAR
 ```
 
 | 關卡 | 魔王 | 第 1 階段 | 第 2 階段 | 第 3 階段 |
 |------|------|-----------|-----------|-----------|
-| 1、4、7… | WARDEN | Aimed Fans：五向自機狙 + 慢速大彈環 | Twin Spiral：雙螺旋 + 雷射 | Last Stand：密集環形彈 + 高速自機狙 |
-| 2、5、8… | HIVE CARRIER | Drone Bay：放出無人機 + 環形彈 | Bloom：五瓣花形彈，每 2 秒反轉方向 | Laser Rain：雷射從上方隨機落下 |
-| 3、6、9… | TWIN FANG | Crossfire：雙砲口交叉雷射 | Pinwheel：兩組反向旋轉的風車彈 | Fang Rush：魔王追著玩家移動 |
+| 1 | WARDEN | Aimed Fans：五向自機狙 + 慢速大彈環 | Twin Spiral：雙螺旋 + 雷射 | Last Stand：密集環形彈 + 高速自機狙 |
+| 2 | HIVE CARRIER | Drone Bay：放出無人機 + 環形彈 | Bloom：五瓣花形彈，每 2 秒反轉方向 | Laser Rain：雷射從上方隨機落下 |
+| 3（最後一關） | TWIN FANG x2 | Crossfire：雙砲口交叉雷射 | Pinwheel：反向旋轉的風車彈 | Fang Rush：兩隻一左一右夾擊玩家 |
 
-- HP 剩 66%、33% 時換階段，畫面上的子彈會被清掉，並顯示階段名稱
+- 每隻魔王 HP 剩 66%、33% 時換階段，畫面上的子彈會被清掉，並顯示階段名稱
 - 每個階段有 30 秒時限：時間內打破有 +1000 分；時間到直接換下一階段；最後階段時間到魔王會逃走
-- 每輪一次魔王，HP 和子彈速度都會變高
+- 最後一關的兩隻 TWIN FANG 各自有血條和階段；**先打倒一隻，另一隻會暴走（RAGE），射速變兩倍**
+- 兩隻都打倒就 **ALL CLEAR**，加 20,000 分 + 每剩 1 滴血 5,000 分，遊戲結束
+
+### 畫面風格
+
+參考縱向彈幕射擊遊戲常見的版面（這個類型的共同慣例，不是照抄某一款遊戲）：
+
+- **右邊資訊面板**：遊戲區在左邊，右邊是有外框的面板，顯示 HI-SCORE、SCORE、PLAYER（剩幾條命）、
+  BOMB、POWER、GRAZE、STAGE；自動駕駛時還會顯示 3x3 搖桿燈號，看 AI 選了哪個方向、有沒有開慢速
+- **魔王血條在上方**：每隻魔王一條，有階段刻度、魔王名稱和階段倒數秒數；雙魔王時會有兩條
+- **ENEMY 標記**：遊戲區最下面有紅色三角形，標出魔王現在的左右位置
+- **關卡標題帶**：STAGE、WARNING、ALL CLEAR 會用橫跨整個遊戲區的色帶顯示
 
 ![魔王](docs/bosses.png)
 
@@ -129,7 +143,8 @@ python -m shmup --autopilot     # 看 DQN 自己玩（要先訓練好模型）
      ▼
 [6] 看結果（這一步才需要畫面）
      ├─▶ pygame 版：python -m shmup --autopilot
-     └─▶ 網頁版：  web/index.html（純 JavaScript 推論，可以開 Agent 視角、直接打魔王）
+     ├─▶ 網頁版：  web/index.html（純 JavaScript 推論，可以開 Agent 視角、直接打魔王）
+     └─▶ 錄影：    scripts/record_video.py（第 10 / 50 / 500 / 2000 回合的權重各錄一支，同一個 seed）
 ```
 
 ---
@@ -170,6 +185,30 @@ python scripts/train_cpu.py --help                # 所有超參數都能用參�
 - 存活最久的模型存到 `models/dqn.pt`，最新的（含 optimizer）存到 `models/dqn_last.pt`，按 Ctrl+C 中斷也會存。
 - GPU 版只用 PyTorch 1.0 時代就有的 CUDA 功能。**Mac 沒有 CUDA，請用 CPU 版或 Colab。**
 
+### 用全部 CPU 核心訓練 2000 回合，並在第 10 / 50 / 500 / 2000 回合存權重
+
+```bash
+python scripts/train_cpu.py --workers 8 --num-envs 16 --threads 2 \
+    --max-episodes 2000 --save-episodes 10,50,500,2000 --total-steps 100000000
+```
+
+- `--workers 8`：開 8 個程序跑遊戲，一個核心一個（改成你電腦的核心數）
+- `--threads 2`：梯度更新用 2 個執行緒；這個網路很小，實測 2 個比 4、8 個都快
+- `--max-episodes 2000`：玩滿 2000 回合就停
+- `--save-episodes`：在這幾個回合各存一份權重到 `models/checkpoints/dqn_ep{N}.pt`，順便評估 5 局
+- log 會印出目前第幾回合（`ep`）
+
+### 錄影：比較不同訓練程度的 agent
+
+```bash
+python scripts/record_video.py                       # 錄第 10 / 50 / 500 / 2000 回合的權重
+python scripts/record_video.py --episodes 50 2000 --seconds 60
+```
+
+每個權重都用同一個 seed 玩一局，畫面跟 pygame 版一樣（含右邊面板和 AI 搖桿燈號），
+輸出到 `videos/episode_0010.mp4` 等，另外合成一支 2x2 對照影片 `videos/compare_2x2.mp4`。
+不用開視窗；需要電腦裡有 ffmpeg。
+
 ### 在 Google Colab 上訓練
 
 1. 在本機打包程式碼，把 zip 上傳到 Google Drive 根目錄：
@@ -187,8 +226,8 @@ python scripts/train_cpu.py --help                # 所有超參數都能用參�
 
 ## 訓練時間估計
 
-「訓練 N 回合」指 N 個 episode（一局遊戲，從開始到死亡或滿 5 分鐘）。
-一開始 agent 幾乎是亂動，一局大約 1,000 步；學會閃避之後一局會越來越長，最長 9,000 步。
+「訓練 N 回合」指 N 個 episode（一局遊戲，從開始到死亡、ALL CLEAR，或滿 15,000 步約 8 分鐘）。
+一開始 agent 幾乎是亂動，一局大約 1,000 步；學會閃避之後一局會越來越長。
 
 | 訓練回合數 | 約等於幾步決策 | 這時候的 agent | CPU 版（本機 Mac 8 核，實測推算） | GPU 版（Colab T4，估計） |
 |-----------:|---------------|----------------|---------------------------------:|-------------------------:|
@@ -206,8 +245,8 @@ python scripts/train_cpu.py --help                # 所有超參數都能用參�
   但瓶頸還是 Python 的遊戲模擬，大約每秒 1,500–2,500 步。實際速度請看 log 裡的 `steps/s`。
 - 時間有包含定期評估（每次評估玩 10 局，agent 越強評估越久）。
 - ※ GPU 版一開始就同時跑 64 局，每局約 1,000 步，所以要先跑大約 5 萬步，前 64 個回合才會幾乎同時結束。
-- 2000 回合的範圍很大，因為回合長度取決於 agent 學得多好；如果 agent 已經很強、每局都活滿 5 分鐘，
-  2000 回合最多可能到 1,800 萬步（CPU 約 5 小時以上，GPU 約 2–3 小時）。
+- 2000 回合的範圍很大，因為回合長度取決於 agent 學得多好；如果 agent 已經很強、每局都打到最後一關，
+  2000 回合最多可能到 2,000 萬步以上（CPU 約 5 小時以上，GPU 約 2–3 小時）。
 - 想要能躲過魔王彈幕的 agent，建議至少訓練 300 萬步（CPU 約 50–60 分鐘、Colab 約 20–35 分鐘）。
 
 ---

@@ -4,13 +4,15 @@
     "AUTO_BOMB": true,
     "BOMB_DAMAGE": 12,
     "BOMB_INVULN_FRAMES": 60,
+    "BOSS_COUNT": {
+      "boss_fang": 2
+    },
     "BOSS_HP_PER_STAGE": 0.3,
     "BOSS_ITEM_DROPS": 8,
     "BOSS_NAMES": {
       "boss_carrier": "HIVE CARRIER",
       "boss_fang": "TWIN FANG",
-      "boss_warden": "WARDEN",
-      "midboss": "SENTINEL"
+      "boss_warden": "WARDEN"
     },
     "BOSS_ORDER": [
       "boss_warden",
@@ -18,7 +20,7 @@
       "boss_fang"
     ],
     "BOSS_PHASE_TIME": 1800,
-    "BOSS_TIME": 4200,
+    "BOSS_TIME": 3600,
     "BOSS_WARNING_FRAMES": 150,
     "BULLET_CANCEL_SCORE": 10,
     "BULLET_MARGIN": 24.0,
@@ -27,6 +29,8 @@
       "laser": 4.0,
       "orb": 5.0
     },
+    "CLEAR_BONUS": 20000,
+    "CLEAR_BONUS_PER_HP": 5000,
     "COLLECT_LINE_Y": 180.0,
     "CONTACT_DAMAGE_TO_ENEMY": 5,
     "DIAGONAL": 0.7071067811865476,
@@ -43,9 +47,9 @@
       "boss_fang": {
         "boss": true,
         "drop": 1.0,
-        "hp": 400,
+        "hp": 260,
         "radius": 44.0,
-        "score": 15000
+        "score": 9000
       },
       "boss_warden": {
         "boss": true,
@@ -84,13 +88,6 @@
         "radius": 9.0,
         "score": 10
       },
-      "midboss": {
-        "boss": true,
-        "drop": 1.0,
-        "hp": 120,
-        "radius": 32.0,
-        "score": 3000
-      },
       "scout": {
         "drop": 0.12,
         "hp": 3,
@@ -105,6 +102,7 @@
       }
     },
     "ENEMY_CONTACT_SCALE": 0.8,
+    "FINAL_STAGE": 3,
     "FIRE_INTERVAL": 6,
     "FPS": 60,
     "GRAZE_SCORE": 5,
@@ -138,9 +136,6 @@
       38
     ],
     "MAX_DRONES": 6,
-    "MIDBOSS_ESCAPE": 1500,
-    "MIDBOSS_ITEM_DROPS": 3,
-    "MIDBOSS_TIME": 1500,
     "PHASE_BONUS": 1000,
     "PHASE_NAMES": {
       "boss_carrier": [
@@ -157,11 +152,6 @@
         "Aimed Fans",
         "Twin Spiral",
         "Last Stand"
-      ],
-      "midboss": [
-        "Ring Guard",
-        "Ring Guard",
-        "Ring Guard"
       ]
     },
     "PHASE_THRESHOLDS": [
@@ -179,10 +169,12 @@
     "PLAYER_SPEED": 4.5,
     "PLAYER_START_BOMBS": 2,
     "PLAYER_START_Y": 640.0,
+    "RAGE_SPEEDUP": 2.0,
     "SHIELD_INVULN_FRAMES": 60,
     "SHOT_DAMAGE": 1,
     "SHOT_RADIUS": 6.0,
     "SHOT_SPEED": 13.0,
+    "TWIN_OFFSET": 110.0,
     "WAVES": [
       [
         "scout_line",

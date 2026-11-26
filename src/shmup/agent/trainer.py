@@ -21,7 +21,7 @@ DEFAULTS = OrderedDict([
     ("total_steps", 3000000),      # 所有環境加起來的總決策數
     ("num_envs", 8),
     ("workers", 0),                # 大於 1：用這麼多個程序跑遊戲
-    ("max_episode_steps", 9000),   # 5 分鐘的遊戲時間
+    ("max_episode_steps", 15000),  # 約 8 分鐘，夠打完 3 關
     ("hidden", 256),
     ("buffer_size", 300000),
     ("batch_size", 128),
@@ -43,6 +43,9 @@ DEFAULTS = OrderedDict([
     ("threads", 0),                # torch 用幾個 CPU 執行緒，0 = 預設
     ("save_path", str(MODELS_DIR / "dqn.pt")),
     ("resume", ""),                # 要接著訓練的存檔（例如 models/dqn_last.pt）
+    ("max_episodes", 0),           # 玩滿這麼多回合就停（0 = 只看 total_steps）
+    ("save_episodes", ""),         # 在這些回合數各存一份權重，例如 "10,50,500,2000"
+    ("milestone_eval", 5),         # 存里程碑權重時順便評估幾局
 ])
 
 
@@ -91,12 +94,12 @@ def load_network(path, device="cpu"):
 # ---------------------------------------------------------------------------
 # 評估
 # ---------------------------------------------------------------------------
-def evaluate(net, device, episodes=10, max_steps=9000, seed=100000):
+def evaluate(net, device, episodes=10, max_steps=15000, seed=100000):
     """用固定的 seed、完全貪心地玩幾局。"""
     was_training = net.training
     net.eval()
     env = ShmupEnv(seed=0, max_steps=max_steps)
-    lengths, scores, stages, hp_lost = [], [], [], 0
+    lengths, scores, stages, hp_lost, clears = [], [], [], 0, 0
     with torch.no_grad():
         for ep in range(episodes):
             obs = env.reset(seed + ep)
@@ -109,10 +112,12 @@ def evaluate(net, device, episodes=10, max_steps=9000, seed=100000):
             lengths.append(info["t"])
             scores.append(info["score"])
             stages.append(info["stage"])
+            clears += 1 if info["cleared"] else 0
     net.train(was_training)
     minutes = sum(lengths) / 1800.0
     return {"survival": float(np.mean(lengths)),
             "full_runs": int(sum(t >= max_steps for t in lengths)),
+            "clears": clears,
             "hp_lost_per_min": hp_lost / max(minutes, 1e-9),
             "score": float(np.mean(scores)),
             "stage": float(np.mean(stages))}
@@ -141,7 +146,7 @@ def train(cfg):
     target.load_state_dict(online.state_dict())
     target.eval()
     optimizer = torch.optim.Adam(online.parameters(), lr=cfg["lr"], eps=1.5e-4)
-    start_step, best = 0, -1.0
+    start_step, best, start_episodes = 0, -1.0, 0
     if cfg["resume"]:
         ckpt = torch.load(cfg["resume"], map_location=device)
         online.load_state_dict(ckpt["model"])
@@ -150,6 +155,7 @@ def train(cfg):
             optimizer.load_state_dict(ckpt["optimizer"])
         start_step = int(ckpt.get("step") or 0)
         best = float(ckpt.get("best", -1.0))
+        start_episodes = int(ckpt.get("episodes") or 0)
         print("從 %s 的第 %d 步接著訓練（replay buffer 會先重新收集資料）"
               % (cfg["resume"], start_step))
 
@@ -174,13 +180,20 @@ def train(cfg):
     returns = np.zeros(cfg["num_envs"])
     recent_returns, recent_lengths, losses = [], [], []
     start = last_log_time = time.time()
+    last_log_step = step
     next_log = (step // cfg["log_every"] + 1) * cfg["log_every"]
     next_eval = (step // cfg["eval_every"] + 1) * cfg["eval_every"]
     save_path = Path(cfg["save_path"])
     last_path = save_path.with_name(save_path.stem + "_last" + save_path.suffix)
+    episodes = start_episodes
+    milestones = sorted(int(x) for x in str(cfg["save_episodes"]).split(",") if x.strip())
+    milestones = [m for m in milestones if m > episodes]
+    milestone_dir = save_path.parent / "checkpoints"
 
     try:
         while step < cfg["total_steps"]:
+            if cfg["max_episodes"] and episodes >= cfg["max_episodes"]:
+                break
             # 選動作：對所有環境一起做 epsilon-greedy
             eps = epsilon_at(cfg, step)
             with torch.no_grad():
@@ -198,6 +211,7 @@ def train(cfg):
                     recent_returns.append(returns[i])
                     recent_lengths.append(infos[i]["t"])
                     returns[i] = 0.0
+                    episodes += 1
             obs = next_obs
             prev_step, step = step, step + cfg["num_envs"]
 
@@ -217,33 +231,49 @@ def train(cfg):
                     if grad_steps % cfg["target_update"] == 0:
                         target.load_state_dict(online.state_dict())
 
+            # 里程碑：第 N 回合結束時存一份權重（之後拿來錄影比較）
+            while milestones and episodes >= milestones[0]:
+                m = milestones.pop(0)
+                stats = evaluate(online, device, cfg["milestone_eval"], cfg["max_episode_steps"])
+                path = milestone_dir / ("dqn_ep%d.pt" % m)
+                save_checkpoint(online, cfg, path, {"step": step, "episodes": episodes, "eval": stats})
+                print("  [第 %d 回合] 存檔 %s | 評估 survival %.0f  score %.0f  stage %.2f"
+                      % (m, path, stats["survival"], stats["score"], stats["stage"]), flush=True)
+
             # 印 log、評估、存檔
             if step >= next_log:
                 next_log += cfg["log_every"]
                 now = time.time()
-                speed = cfg["log_every"] / max(now - last_log_time, 1e-9)
-                last_log_time = now
-                print("step %10d  eps %.3f | return %8.2f  length %6.0f | loss %.4f | "
+                # 用實際走過的步數算速度（續訓後第一段不是完整的 log_every）
+                speed = (step - last_log_step) / max(now - last_log_time, 1e-9)
+                last_log_time, last_log_step = now, step
+                print("step %10d  ep %5d  eps %.3f | return %8.2f  length %6.0f | loss %.4f | "
                       "%5.0f steps/s | %6.0fs"
-                      % (step, eps, _mean(recent_returns[-50:]), _mean(recent_lengths[-50:]),
-                         _mean(losses[-50:]), speed, now - start), flush=True)
+                      % (step, episodes, eps, _mean(recent_returns[-50:]),
+                         _mean(recent_lengths[-50:]), _mean(losses[-50:]), speed, now - start),
+                      flush=True)
             if step >= next_eval:
                 next_eval += cfg["eval_every"]
                 stats = evaluate(online, device, cfg["eval_episodes"], cfg["max_episode_steps"])
-                print("  eval: survival %.0f  full %d/%d  hp_lost/min %.2f  score %.0f  stage %.2f"
-                      % (stats["survival"], stats["full_runs"], cfg["eval_episodes"],
+                print("  eval: survival %.0f  clear %d/%d  hp_lost/min %.2f  score %.0f  stage %.2f"
+                      % (stats["survival"], stats["clears"], cfg["eval_episodes"],
                          stats["hp_lost_per_min"], stats["score"], stats["stage"]), flush=True)
                 if stats["survival"] > best:
                     best = stats["survival"]
                     save_checkpoint(online, cfg, save_path, {"step": step, "eval": stats})
                     print("  新的最佳模型 -> %s" % save_path, flush=True)
                 save_checkpoint(online, cfg, last_path,
-                                {"step": step, "eval": stats, "best": best}, optimizer)
+                                {"step": step, "episodes": episodes, "eval": stats, "best": best},
+                                optimizer)
     except KeyboardInterrupt:
         print("訓練被中斷，存檔到 %s" % last_path)
-        save_checkpoint(online, cfg, last_path, {"step": step, "best": best}, optimizer)
+        save_checkpoint(online, cfg, last_path,
+                        {"step": step, "episodes": episodes, "best": best}, optimizer)
     finally:
         envs.close()
+    save_checkpoint(online, cfg, last_path,
+                    {"step": step, "episodes": episodes, "best": best}, optimizer)
+    print("共 %d 步、%d 回合，花了 %.1f 分鐘" % (step, episodes, (time.time() - start) / 60))
     if best < 0:
         save_checkpoint(online, cfg, save_path, {"step": step})
     print("訓練完成。匯出給網頁版：python scripts/export_web.py")

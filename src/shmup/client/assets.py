@@ -58,6 +58,38 @@ class Assets:
             self._variants[key] = surf
         return surf
 
+    def band(self, width, height, color, alpha):
+        """半透明的色帶（關卡標題、WARNING 用）。"""
+        key = ("band", width, height, color, alpha)
+        surf = self._variants.get(key)
+        if surf is None:
+            surf = pygame.Surface((width, height))
+            surf.fill(color)
+            surf.set_alpha(alpha)
+            self._variants[key] = surf
+        return surf
+
+    def panel(self, width, height):
+        """右邊資訊面板的底圖：暗色星空 + 金屬邊框，只畫一次。"""
+        key = ("panel", width, height)
+        surf = self._variants.get(key)
+        if surf is None:
+            surf = pygame.Surface((width, height)).convert()
+            tile = self.image("backgrounds/black.png")
+            for y in range(0, height, tile.get_height()):
+                for x in range(0, width, tile.get_width()):
+                    surf.blit(tile, (x, y))
+            shade = pygame.Surface((width, height))
+            shade.fill((10, 10, 30))
+            shade.set_alpha(120)
+            surf.blit(shade, (0, 0))
+            pygame.draw.rect(surf, (20, 20, 28), (0, 0, 8, height))
+            pygame.draw.line(surf, (150, 150, 170), (8, 0), (8, height), 2)
+            pygame.draw.rect(surf, (90, 90, 110), (14, 90, width - 26, 270), 1)
+            pygame.draw.rect(surf, (90, 90, 110), (14, 380, width - 26, 230), 1)
+            self._variants[key] = surf
+        return surf
+
     # -- 字型 --------------------------------------------------------------
     def font(self, size, thin=False):
         key = (size, thin)

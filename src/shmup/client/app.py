@@ -10,7 +10,7 @@ from ..core import rules as R
 from ..paths import HIGHSCORE_FILE, MODELS_DIR
 from .assets import Assets
 from .audio import Audio
-from .renderer import Renderer, YELLOW
+from .renderer import SCREEN_W, Renderer, YELLOW
 
 CONTROLS = (
     "ARROWS / WASD  move",
@@ -40,7 +40,7 @@ class App:
     def __init__(self, autopilot=False, model_path=None, seed=None, speed=1):
         pygame.init()
         pygame.display.set_caption("Vertical Shmup")
-        self.screen = pygame.display.set_mode((R.WIDTH, R.HEIGHT))
+        self.screen = pygame.display.set_mode((SCREEN_W, R.HEIGHT))
         self.clock = pygame.time.Clock()
         self.assets = Assets()
         self.audio = Audio(self.assets)
@@ -164,6 +164,10 @@ class App:
                 self._save_highscore()
 
     # -- 畫面 -----------------------------------------------------------------
+    def _hud(self):
+        return {"hiscore": self.highscore, "autopilot": self.autopilot,
+                "action": self.action if self.autopilot else None}
+
     def _draw(self):
         r = self.renderer
         if self.scene == TITLE:
@@ -175,19 +179,19 @@ class App:
             r.text("A  watch the DQN autopilot", 18, (R.WIDTH // 2, 332), anchor="center")
             for i, line in enumerate(CONTROLS):
                 r.text(line, 12, (R.WIDTH // 2, 420 + i * 22), (180, 200, 255), "center", thin=True)
-            r.text("HI %08d" % self.highscore, 14, (R.WIDTH // 2, R.HEIGHT - 50),
-                   (255, 240, 150), "center")
+            r.draw_panel(self.world, self._hud())
             return
-        r.draw(self.world, self.overlay)
-        if self.autopilot:
-            r.text("AUTOPILOT  (DQN)", 12, (R.WIDTH // 2, R.HEIGHT - 24), (80, 255, 120))
+        r.draw(self.world, self.overlay, self._hud())
         if self.speed > 1:
             r.text("x%d" % self.speed, 12, (R.WIDTH - 8, R.HEIGHT - 24), anchor="topright")
         if self.scene == PAUSED:
             r.text("PAUSED", 34, (R.WIDTH // 2, R.HEIGHT // 2), anchor="center")
         elif self.scene == GAME_OVER:
             self.over_timer += 1
-            r.text("GAME OVER", 38, (R.WIDTH // 2, R.HEIGHT // 2 - 40), (255, 90, 90), "center")
+            w = self.world
+            title = "ALL CLEAR!" if w.cleared else ("THE END" if w.player.hp > 0 else "GAME OVER")
+            r.text(title, 38, (R.WIDTH // 2, R.HEIGHT // 2 - 40),
+                   YELLOW if w.cleared else (255, 90, 90), "center")
             r.text("SCORE %d" % self.world.score, 18, (R.WIDTH // 2, R.HEIGHT // 2 + 10),
                    anchor="center")
             r.text("HI %d" % self.highscore, 14, (R.WIDTH // 2, R.HEIGHT // 2 + 40),
