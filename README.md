@@ -20,9 +20,8 @@
 7. [要訓練多少回合？](#要訓練多少回合)
 8. [網頁版（demo 用）](#網頁版demo-用)
 9. [專案結構](#專案結構)
-10. [測試](#測試)
-11. [2022 年以前檢查](#2022-年以前檢查)
-12. [素材來源](#素材來源)
+10. [2022 年以前檢查](#2022-年以前檢查)
+11. [素材來源](#素材來源)
 
 ---
 
@@ -286,28 +285,13 @@ vertical-shmup/
 │       ├── assets.py             圖片、字型、音效
 │       └── video.py              錄影（ffmpeg）
 ├── web/                          網頁版：index.html、style.css、js/（rules、core、agent、renderer、main）
-├── tests/                        遊戲規則、gym 環境、Python ↔ JavaScript 一致性
 ├── assets/                       素材（圖片、音效、字型、授權檔）
 └── docs/                         README 用的圖片
 ```
 
 - `game/` 不碰畫面，訓練時完全不會 import pygame；網頁版的 `web/js/core.js` 是逐行對照它寫的
-- 所有數字只寫在 `rules.py` 一個地方，測試會檢查網頁版的 `rules.js` 有沒有過期
+- 所有數字只寫在 `rules.py` 一個地方，網頁版的 `rules.js` 由 `python -m shmup export` 自動產生
 - 強化學習演算法交給 SB3；`rl/` 只寫環境、訓練流程（回合計數、存檔、評估）和推論
-
----
-
-## 測試
-
-```bash
-pytest
-```
-
-- `tests/test_game.py`：遊戲規則（2 關、雙魔王、炸彈、護盾、ALL CLEAR…）
-- `tests/test_rl.py`：用 SB3 內建的 `check_env` 檢查 gym 環境、截斷標記、對照組
-- `tests/test_web_parity.py`：同一個 seed 分別在 Python 和 Node.js 跑 30,000 個 frame，
-  檢查分數、子彈數、亂數狀態、觀測向量完全一樣；也檢查匯出的 PPO 策略網路在 JavaScript 算出的動作機率和
-  PyTorch 一樣（沒有安裝 Node.js 時自動跳過）
 
 ---
 
@@ -324,14 +308,28 @@ pytest
 | numpy | 1.23.5 | 2022-11-20 | 觀測向量 |
 | pandas / matplotlib | 1.5.2 / 3.6.2 | 2022-11 | SB3 的相依、學習曲線 |
 | pygame | 2.1.2 | 2021-12-27 | 自己玩、錄影 |
-| pytest | 7.2.0 | 2022-10-25 | 測試 |
 | pip / setuptools / wheel | 22.3.1 / 65.5.0 / 0.38.4 | 2022 | 安裝 |
 
 其他間接相依（cloudpickle、pillow、packaging…）也全部固定在 `requirements.txt`，每一行都標了發布日期。
 訓練時會把實際用到的版本寫進 `models/ppo/versions.json`。
 
-**不屬於專案本身的工具**：Colab 用 micromamba 下載 Python 3.10.8、錄影用系統的 ffmpeg、測試用 Node.js——
+**不屬於專案本身的工具**：Colab 用 micromamba 下載 Python 3.10.8、錄影用系統的 ffmpeg——
 這些只是安裝或執行用的工具，專案的程式碼不依賴它們的版本。
+
+### 素材（逐檔比對）
+
+`assets/` 裡每一個圖片、音效、字型、音樂檔，都和原始下載的壓縮檔**逐位元組相同**（用 SHA-1 比對），
+檔案本身內嵌的日期也都在 2013 年：
+
+| 種類 | 原始檔案日期 | 檔案內嵌的資訊 |
+|------|-------------|---------------|
+| 圖片 32 個（戰機、敵人、魔王、子彈、道具、背景、UI） | 2014-01-29 | PNG 沒有內嵌時間 |
+| 字型 2 個（kenvector_future） | 2013-11-15 | 字型檔記錄的建立 / 修改日期：2013-11-15 |
+| 音效 11 個（.ogg） | 2014-01-29、2014-03-17、2017-10-28 | 編碼器 libVorbis 2007、2012 版 |
+| 背景音樂（Orbital Colossus） | 2013-10-27 上傳 | MP3 標籤年份 2013 |
+
+注意：`assets/licenses/kenney_space_shooter_redux.txt` 是 Kenney 的授權說明文字（不是遊戲素材），
+現在網站上下載到的版本日期是 2026 年；素材本身（2014）不受影響。
 
 ### 演算法
 
