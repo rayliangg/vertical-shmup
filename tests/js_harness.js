@@ -12,7 +12,8 @@ global.atob = function (s) { return Buffer.from(s, "base64").toString("binary");
 if (modelFile) vm.runInThisContext(fs.readFileSync(modelFile, "utf8"), { filename: "model.js" });
 vm.runInThisContext(fs.readFileSync(path.join(web, "js/agent.js"), "utf8"), { filename: "agent.js" });
 var S = global.Shmup, F = S.Features;
-var world = new S.World(seed), trace = [], policy = modelFile ? S.loadPolicy() : null;
+var world = new S.World(seed), trace = [];
+var policy = modelFile ? S.policyFromData(S.MODELS_DATA[Object.keys(S.MODELS_DATA)[0]]) : null;
 
 for (var f = 0; f < frames; f++) {
   var a = F.ACTIONS[Math.floor(f * 7 / 13) % F.ACTIONS.length];

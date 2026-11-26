@@ -73,7 +73,7 @@ def test_exported_policy_matches_torch(tmp_path):
 
     model = PPO("MlpPolicy", ShmupEnv(), seed=0, device="cpu",
                 policy_kwargs=dict(net_arch=[dict(pi=[64, 64], vf=[64, 64])]))
-    model_js = write_model(model.policy, {"step": 0}, tmp_path / "model.js")
+    model_js = write_model(model.policy, "test", {"step": 0}, tmp_path / "model.js")
     py, js = python_trace(3, 600, model.policy), node_trace(3, 600, model_js)
     for a, b in zip(py, js):
         for u, v in zip(a["probs"], b["probs"]):

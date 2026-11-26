@@ -78,7 +78,8 @@
   var renderer = new S.Renderer(canvas);
   var audio = new S.Audio();
   var world = new S.World(Date.now() % 100000);
-  var policy = S.loadPolicy();
+  var models = S.MODEL_LIST || [];          // 由 web/model/manifest.js 提供（訓練時自動更新）
+  var policy = null;
 
   var state = {
     scene: "title", autopilot: false, speed: 1, action: 0, overlay: null,
@@ -117,16 +118,55 @@
     $("btn-view").classList.toggle("on", on);
   }
 
-  function initPanel() {
-    if (policy) {
-      var m = policy.meta || {};
-      $("model-info").innerHTML = "PPO 模型練了 " +
-        (m.step != null ? Number(m.step).toLocaleString() + " 步" : "?? 步") +
-        (m.source ? "（" + m.source + "）" : "");
-    } else {
-      $("model-info").innerHTML = "還沒有模型，先訓練再跑<br><code>python -m shmup export</code>";
-      $("btn-autopilot").disabled = true;
+  // ---- 模型選單：第 100 / 500 / 2000 / 5000 回合、最佳模型 ----
+  function describe(entry) {
+    var ev = entry.eval || {}, parts = [];
+    parts.push("練了 " + Number(entry.step || 0).toLocaleString() + " 步");
+    if (ev.seconds != null) {
+      parts.push("測試平均撐 " + Math.round(ev.seconds) + " 秒、平均第 " + Number(ev.stage).toFixed(1) +
+                 " 關、通關 " + ev.clears + "/" + ev.episodes);
     }
+    return parts.join("<br>");
+  }
+
+  function selectModel(index) {
+    var entry = models[index];
+    $("model-info").innerHTML = "載入中…";
+    $("btn-autopilot").disabled = true;
+    S.loadModel(entry, function (p) {
+      policy = p;
+      $("btn-autopilot").disabled = !policy;
+      $("model-info").innerHTML = policy ? describe(entry) : "這個模型載入失敗，請重新執行 python -m shmup export";
+      state.runs = [];                                   // 換模型之後重新統計平均分數
+      if (!policy) setAutopilot(false);
+      else if (state.autopilot) newGame();
+    });
+  }
+
+  function initModels() {
+    var sel = $("model-select");
+    if (!models.length) {
+      sel.disabled = true;
+      sel.innerHTML = "<option>還沒有模型</option>";
+      $("model-info").innerHTML = "先訓練（python -m shmup train），<br>每到一個里程碑就會自動出現在這裡";
+      $("btn-autopilot").disabled = true;
+      return;
+    }
+    var preferred = 0;
+    models.forEach(function (entry, i) {
+      var opt = document.createElement("option");
+      opt.value = String(i);
+      opt.textContent = entry.label;
+      sel.appendChild(opt);
+      if (entry.id !== "best") preferred = i;            // 預設選最後一個里程碑（練最久的）
+    });
+    sel.value = String(preferred);
+    sel.onchange = function () { selectModel(Number(sel.value)); canvas.focus(); };
+    selectModel(preferred);
+  }
+
+  function initPanel() {
+    initModels();
     $("btn-play").onclick = function () { setAutopilot(false); newGame(); canvas.focus(); };
     $("btn-autopilot").onclick = function () {
       setAutopilot(!state.autopilot);

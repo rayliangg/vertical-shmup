@@ -187,13 +187,24 @@
   };
 
   S.Policy = Policy;
-  S.loadPolicy = function () {
-    if (!S.MODEL) return null;
-    if (S.MODEL.obs_dim !== S.Features.OBS_DIM) {
-      console.warn("模型需要", S.MODEL.obs_dim, "維輸入，但遊戲提供", S.Features.OBS_DIM,
+  S.policyFromData = function (data) {
+    if (!data) return null;
+    if (data.obs_dim !== S.Features.OBS_DIM) {
+      console.warn("模型需要", data.obs_dim, "維輸入，但遊戲提供", S.Features.OBS_DIM,
                    "維，請重新匯出模型。");
       return null;
     }
-    return new Policy(S.MODEL);
+    return new Policy(data);
+  };
+
+  // 載入選單選到的模型（web/model/ppo_ep500.js 之類）。用 <script> 動態載入，直接開 file:// 也能用。
+  S.loadModel = function (entry, done) {
+    S.MODELS_DATA = S.MODELS_DATA || {};
+    if (S.MODELS_DATA[entry.id]) { done(S.policyFromData(S.MODELS_DATA[entry.id])); return; }
+    var tag = document.createElement("script");
+    tag.src = "model/" + entry.file;
+    tag.onload = function () { done(S.policyFromData(S.MODELS_DATA[entry.id])); };
+    tag.onerror = function () { done(null); };
+    document.head.appendChild(tag);
   };
 })(this.Shmup = this.Shmup || {});

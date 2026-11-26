@@ -3,7 +3,7 @@
     play      自己玩（--autopilot 看 PPO 玩）
     train     訓練 PPO（不需要畫面；有 GPU 就用 GPU）
     eval      評估一個模型
-    report    學習曲線 + 第 10/50/500/2000 回合模型的結果表
+    report    學習曲線 + 第 100/500/2000/5000 回合模型的結果表
     record    把里程碑模型錄成影片
     export    匯出遊戲規則和模型給網頁版
 
@@ -36,7 +36,7 @@ def main(argv=None):
     p.add_argument("--seed", type=int, default=None, help="每一局都用固定的 seed")
     p.add_argument("--speed", type=int, default=1, help="每個畫面 frame 跑幾步模擬（加速用）")
 
-    p = sub.add_parser("train", help="訓練 PPO（預設：用滿 CPU 核心、玩到 2000 回合）")
+    p = sub.add_parser("train", help="訓練 PPO（預設：用滿 CPU 核心、玩到 5000 回合）")
     _add_train_args(p)
 
     p = sub.add_parser("eval", help="用固定的 10 局評估一個模型")
@@ -49,14 +49,14 @@ def main(argv=None):
 
     p = sub.add_parser("record", help="把里程碑模型錄成影片")
     p.add_argument("--run-dir", default=str(RUN_DIR))
-    p.add_argument("--episodes", type=int, nargs="+", default=[10, 50, 500, 2000])
+    p.add_argument("--episodes", type=int, nargs="+", default=[100, 500, 2000, 5000])
     p.add_argument("--seconds", type=float, default=120, help="每支影片最長幾秒")
     p.add_argument("--seed", type=int, default=100000, help="每支影片都用這個 seed")
     p.add_argument("--out", default=str(ROOT / "videos"))
     p.add_argument("--no-grid", action="store_true", help="不要合成 2x2 對照影片")
 
-    p = sub.add_parser("export", help="匯出遊戲規則和模型給網頁版")
-    p.add_argument("--model", default=str(RUN_DIR / "best_model.zip"))
+    p = sub.add_parser("export", help="匯出遊戲規則和所有里程碑模型給網頁版（訓練時會自動做）")
+    p.add_argument("--run-dir", default=str(RUN_DIR))
     p.add_argument("--rules-only", action="store_true", help="只匯出規則（改過 game/rules.py 之後）")
 
     args = ap.parse_args(argv)
@@ -82,13 +82,13 @@ def main(argv=None):
         record_all(Path(args.run_dir) / "checkpoints", args.episodes, args.out,
                    args.seed, args.seconds, not args.no_grid)
     elif cmd == "export":
-        from .rl.policy import write_model, write_rules
+        from .paths import WEB_DIR
+        from .rl.policy import export_run, write_rules
         print("已輸出", write_rules())
         if not args.rules_only:
-            from stable_baselines3 import PPO
-            model = PPO.load(args.model, device="cpu")
-            meta = {"step": int(model.num_timesteps), "source": Path(args.model).name}
-            print("已輸出", write_model(model.policy, meta))
+            entries = export_run(args.run_dir, [WEB_DIR / "model"])
+            print("已匯出 %d 個模型到 %s：%s" % (len(entries), WEB_DIR / "model",
+                                           "、".join(e["label"] for e in entries)))
 
 
 if __name__ == "__main__":

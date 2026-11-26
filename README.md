@@ -45,10 +45,10 @@ pip install --no-deps -e .
 |------|-------|
 | `python -m shmup play` | 自己玩（加 `--autopilot` 看 PPO 玩） |
 | `python -m shmup train` | 訓練 PPO（不需要畫面；有 GPU 就用 GPU） |
-| `python -m shmup report` | 學習曲線 + 第 10 / 50 / 500 / 2000 回合模型的結果表 |
-| `python -m shmup record` | 把第 10 / 50 / 500 / 2000 回合的模型錄成影片 |
+| `python -m shmup report` | 學習曲線 + 第 100 / 500 / 2000 / 5000 回合模型的結果表 |
+| `python -m shmup record` | 把第 100 / 500 / 2000 / 5000 回合的模型錄成影片 |
 | `python -m shmup eval` | 用固定的 10 局評估一個模型 |
-| `python -m shmup export` | 匯出遊戲規則和模型給網頁版 |
+| `python -m shmup export` | 匯出遊戲規則和所有里程碑模型給網頁版（訓練時會自動做） |
 
 每個指令都可以加 `--help` 看所有參數。
 
@@ -132,13 +132,15 @@ pip install --no-deps -e .
      │   │     ▼
      │   │   PPO 剪裁目標，同一批資料學 10 輪 → 丟掉，重新收集
      │   └─────┘
-     ▼   每 20 萬步 / 第 10、50、500、2000 回合
+     ▼   每 100 萬步 / 第 100、500、2000、5000 回合
 [4] 評估與存檔  固定 seed、選機率最高的動作玩 5 局（models/ppo/）
      │   ├─▶ best_model.zip        存活最久的模型
      │   ├─▶ last_model.zip        最新模型（斷線後 --resume auto 接著訓練）
-     │   ├─▶ checkpoints/ppo_ep{N}.zip   第 10 / 50 / 500 / 2000 回合的模型
+     │   ├─▶ checkpoints/ppo_ep{N}.zip   第 100 / 500 / 2000 / 5000 回合的模型
+     │   ├─▶ milestones.json、best.json   每個里程碑 / 最佳模型的紀錄（時間、步數、評估結果）
+     │   ├─▶ web/ 和 專案的 web/model/   自動匯出的網頁版模型 + 選單清單（manifest.js）
      │   └─▶ part*.monitor.csv、config.json、versions.json   每回合紀錄、超參數、套件版本
-     ▼   玩滿 2000 回合自動停止
+     ▼   玩滿 5000 回合自動停止
 [5] 報告  python -m shmup report
      │   ├─▶ report/learning_curve.png   學習曲線（總獎勵、存活時間、關卡）
      │   └─▶ report/results.md           里程碑模型 vs. 亂動 / 不動 兩個對照組
@@ -146,7 +148,7 @@ pip install --no-deps -e .
 [6] 看結果（這一步才需要畫面）
      ├─▶ 錄影：  python -m shmup record（四個里程碑模型各一支 + 2x2 對照影片，同一個 seed）
      ├─▶ pygame：python -m shmup play --autopilot
-     └─▶ 網頁：  python -m shmup export → web/index.html（純 JavaScript 推論）
+     └─▶ 網頁：  web/index.html，用選單選要看第幾回合的模型（純 JavaScript 推論）
 ```
 
 ---
@@ -208,8 +210,19 @@ python -m shmup report                             # 學習曲線 + 結果表
 python -m shmup record                             # 錄影
 ```
 
-預設：同時玩「CPU 核心數」局（每局一個程序）、玩滿 2000 回合就停、在第 10 / 50 / 500 / 2000 回合存模型、
-每 20 萬步評估一次。**同一時間只跑一個訓練**，否則會搶同一批核心、寫到同一個資料夾。
+預設：同時玩「CPU 核心數」局（每局一個程序）、玩滿 **5000 回合**就停、
+在第 **100 / 500 / 2000 / 5000** 回合存模型、每 100 萬步評估一次。**同一時間只跑一個訓練**，否則會搶同一批核心、寫到同一個資料夾。
+Mac 上建議用 `caffeinate -i python -m shmup train`，訓練期間電腦不會睡著。
+
+**每到一個里程碑，會自動存下這些紀錄**（不用手動做任何事）：
+
+| 檔案 | 內容 |
+|------|------|
+| `models/ppo/checkpoints/ppo_ep{N}.zip` | 第 N 回合的模型 |
+| `models/ppo/milestones.json` | 每個里程碑的回合數、步數、花了幾分鐘、存檔時間、評估結果（存活秒數、關卡、通關次數） |
+| `models/ppo/best.json` | 目前最佳模型的同樣紀錄 |
+| `models/ppo/web/`、`web/model/` | 網頁版模型（`ppo_ep100.js`…、`ppo_best.js`）和選單清單 `manifest.js` |
+| `models/ppo/part*.monitor.csv` | 每一回合的總獎勵、長度、關卡（學習曲線用） |
 
 ---
 
@@ -221,12 +234,21 @@ python -m shmup record                             # 錄影
 
 ## 網頁版（demo 用）
 
+訓練時每到一個里程碑就會自動把模型匯出到 `web/model/`，所以直接開網頁就好：
+
 ```bash
-python -m shmup export              # models/ppo/best_model.zip → web/model/ppo_model.js
 python -m http.server 8000          # 在專案根目錄開一個本機伺服器
 ```
 
-打開 <http://localhost:8000/web/>。頁面做成街機機台的樣子，右邊的操作台可以切換「自己玩」/「AI 開車」、
+打開 <http://localhost:8000/web/>（直接用瀏覽器開 `web/index.html` 也可以）。
+右邊的 **「AI 模型」選單**可以選要看哪一個：第 100 / 500 / 2000 / 5000 回合，或最佳模型；
+選單下面會顯示那個模型練了幾步、測試時平均撐幾秒、平均打到第幾關、通關幾次。
+換模型之後按「AI 開車」就能直接比較不同訓練程度的差別。
+
+如果模型是在 Colab 上訓練的，把 `MyDrive/shmup/ppo/web/` 裡的檔案下載到專案的 `web/model/` 就行；
+或是在本機執行 `python -m shmup export --run-dir <下載的 ppo 資料夾>` 重新匯出。
+
+頁面做成街機機台的樣子，右邊的操作台也可以切換「自己玩」/「AI 開車」、
 「直接打魔王」/「下一關魔王」、x1 / x2 / x4 速度、「危險格」、音效，並顯示 AI 對這一步的把握（動作機率）。
 網頁版的策略網路是用純 JavaScript 做矩陣乘法，不需要任何機器學習函式庫。
 Safari 不支援 `.ogg` 音效，建議用 Chrome 或 Firefox。

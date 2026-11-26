@@ -2,7 +2,7 @@
 
 PPO（Schulman et al., 2017）+ GAE（Schulman et al., 2015），都是 2022 年以前的方法。
 
-    python -m shmup train                         # 有 GPU 就用 GPU 設定，玩到 2000 回合
+    python -m shmup train                         # 有 GPU 就用 GPU 設定，玩到 5000 回合
     python -m shmup train --device cpu            # 強制用 CPU 設定
     python -m shmup train --resume auto           # 有上次的存檔就接著訓練（Colab 斷線後用）
 
@@ -11,8 +11,11 @@ PPO（Schulman et al., 2017）+ GAE（Schulman et al., 2015），都是 2022 年
     part1.monitor.csv …                每一回合的總獎勵、長度、關卡（畫學習曲線用）
     best_model.zip                     評估時存活最久的模型
     last_model.zip / last_progress.json  最新的模型和目前回合數（續訓用）
-    checkpoints/ppo_ep{N}.zip          第 N 回合時的模型（錄影、報告用）
+    checkpoints/ppo_ep{N}.zip          第 N 回合時的模型（錄影、報告、網頁選單用）
+    milestones.json / best.json        每個里程碑和最佳模型的紀錄（時間、步數、評估結果）
+    web/                               自動匯出的網頁版模型（同時也寫進專案的 web/model/）
 """
+import datetime
 import json
 import os
 import platform
@@ -26,17 +29,18 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecMonitor
 
-from ..paths import MODELS_DIR
+from ..paths import MODELS_DIR, WEB_DIR
 from .env import ShmupEnv
 from .evaluate import evaluate, format_eval, model_actor
+from .policy import export_run
 
 # 所有超參數；命令列的 --xxx 會蓋掉這裡的值。None 表示「依 CPU / GPU 設定決定」。
 DEFAULTS = {
     "device": "auto",                  # auto：有 CUDA 就用 GPU 設定
     "n_envs": os.cpu_count() or 4,     # 同時玩幾局；每一局一個程序，預設 = CPU 核心數
-    "max_episodes": 2000,              # 玩滿這麼多回合就停（0 = 只看 total_steps）
-    "save_episodes": "10,50,500,2000",
-    "total_steps": 50000000,           # 安全上限，通常會先因為 max_episodes 停下來
+    "max_episodes": 5000,              # 玩滿這麼多回合就停（0 = 只看 total_steps）
+    "save_episodes": "100,500,2000,5000",
+    "total_steps": 300000000,          # 安全上限，通常會先因為 max_episodes 停下來
     "n_steps": None,                   # 每個環境每次收集幾步再更新（CPU 1024 / GPU 2048）
     "batch_size": None,                # CPU 256 / GPU 1024
     "hidden": None,                    # 策略網路、價值網路每層幾個單元（CPU 256 / GPU 512）
@@ -48,7 +52,7 @@ DEFAULTS = {
     "ent_coef": 0.01,
     "vf_coef": 0.5,
     "max_grad_norm": 0.5,
-    "eval_every": 200000,              # 每幾步評估一次並更新 best_model
+    "eval_every": 1000000,             # 每幾步評估一次並更新 best_model（後期一局很長，評估要花時間）
     "eval_episodes": 5,
     "milestone_eval": 5,
     "seed": 1,
@@ -138,12 +142,34 @@ class ProgressCallback(BaseCallback):
               % (self.num_timesteps, self.episodes, r.mean(), length.mean(), stage.mean(),
                  clears, len(self.recent), fps, elapsed), flush=True)
 
+    def _record(self, stats, model_file):
+        return {"episode": self.episodes, "step": int(self.num_timesteps),
+                "minutes": round((time.time() - self.start_time) / 60, 1),
+                "time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
+                "eval": stats, "model": model_file}
+
+    def _export_web(self):
+        """把里程碑模型和最佳模型匯出成網頁版模型，網頁上的選單就能直接選。"""
+        try:
+            export_run(self.out, [self.out / "web", WEB_DIR / "model"])
+        except Exception as exc:                     # 匯出失敗不應該讓訓練停下來
+            print("  （網頁版匯出失敗：%s）" % exc, flush=True)
+
     def _save_milestone(self, m):
         path = self.out / "checkpoints" / ("ppo_ep%d.zip" % m)
         path.parent.mkdir(parents=True, exist_ok=True)
         self.model.save(str(path))
         stats = evaluate(model_actor(self.model), self.cfg["milestone_eval"])
         print("  [第 %d 回合] 存檔 %s | %s" % (m, path, format_eval(stats)), flush=True)
+        log = self.out / "milestones.json"
+        records = json.loads(log.read_text()) if log.exists() else []
+        records = [r for r in records if r["episode"] != m]
+        rec = self._record(stats, "checkpoints/" + path.name)
+        rec["episode"] = m
+        records.append(rec)
+        log.write_text(json.dumps(sorted(records, key=lambda r: r["episode"]),
+                                  ensure_ascii=False, indent=2))
+        self._export_web()
 
     def _evaluate(self):
         stats = evaluate(model_actor(self.model), self.cfg["eval_episodes"])
@@ -151,7 +177,10 @@ class ProgressCallback(BaseCallback):
         if stats["survival"] > self.best:
             self.best = stats["survival"]
             self.model.save(str(self.out / "best_model.zip"))
+            (self.out / "best.json").write_text(json.dumps(
+                self._record(stats, "best_model.zip"), ensure_ascii=False, indent=2))
             print("  新的最佳模型 -> %s" % (self.out / "best_model.zip"), flush=True)
+            self._export_web()
         self.save_last()
 
     def save_last(self):

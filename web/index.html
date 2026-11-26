@@ -35,7 +35,8 @@
         </div>
 
         <div class="ai-box">
-          <div class="ai-title">AI 模型</div>
+          <div class="ai-title">AI 模型（選訓練到第幾回合）</div>
+          <select id="model-select" class="model-select" aria-label="選擇模型"></select>
           <p class="ai-note" id="model-info"></p>
           <p class="ai-note">AI 對這一步的把握：<b id="joy-q">--</b></p>
           <p class="ai-note">AI 跑了 <b id="stat-runs">0</b> 局，平均 <b id="stat-avg">-</b> 分</p>
@@ -57,7 +58,7 @@
 
   <script src="js/rules.js"></script>
   <script src="js/core.js"></script>
-  <script src="model/ppo_model.js" onerror="console.info('還沒有匯出模型')"></script>
+  <script src="model/manifest.js" onerror="console.info('還沒有匯出模型')"></script>
   <script src="js/agent.js"></script>
   <script src="js/renderer.js"></script>
   <script src="js/main.js"></script>

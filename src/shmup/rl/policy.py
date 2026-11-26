@@ -84,12 +84,63 @@ def policy_layers(policy):
     return layers
 
 
-def write_model(policy, meta=None, path=WEB_DIR / "model" / "ppo_model.js"):
+def write_model(policy, model_id, meta=None, path=None):
+    """匯出一個模型給網頁版：註冊到 Shmup.MODELS_DATA[model_id]（網頁選單選到時才載入）。"""
     layers = policy_layers(policy)
     data = {"algo": "PPO", "obs_dim": layers[0]["in"], "n_actions": layers[-1]["out"],
             "hidden": layers[0]["out"], "actions": [list(a) for a in ACTIONS],
             "layers": layers, "meta": meta or {}}
+    path = path or (WEB_DIR / "model" / ("ppo_%s.js" % model_id))
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(HEADER + "(function (S) { S.MODEL = " + json.dumps(data, separators=(",", ":"))
+    path.write_text(HEADER + "(function (S) { S.MODELS_DATA = S.MODELS_DATA || {}; "
+                    "S.MODELS_DATA[%s] = %s; })(this.Shmup = this.Shmup || {});\n"
+                    % (json.dumps(model_id), json.dumps(data, separators=(",", ":"))))
+    return path
+
+
+def write_manifest(entries, web_model_dir):
+    """網頁選單的清單：有哪些模型、每個模型的評估結果。"""
+    path = web_model_dir / "manifest.js"
+    path.write_text(HEADER + "(function (S) { S.MODEL_LIST = "
+                    + json.dumps(entries, ensure_ascii=False, indent=1)
                     + "; })(this.Shmup = this.Shmup || {});\n")
     return path
+
+
+def export_run(run_dir, web_model_dirs):
+    """把一次訓練的里程碑模型 + 最佳模型全部匯出給網頁版，並更新選單清單。
+
+    訓練時每存一個里程碑就會自動呼叫；也可以用 python -m shmup export 手動執行。
+    """
+    from pathlib import Path
+    from stable_baselines3 import PPO
+
+    run_dir = Path(run_dir)
+    records = {}
+    if (run_dir / "milestones.json").exists():
+        for r in json.loads((run_dir / "milestones.json").read_text()):
+            records["ep%d" % r["episode"]] = r
+    if (run_dir / "best.json").exists():
+        records["best"] = json.loads((run_dir / "best.json").read_text())
+
+    models = sorted((run_dir / "checkpoints").glob("ppo_ep*.zip"),
+                    key=lambda p: int(p.stem.replace("ppo_ep", "")))
+    if (run_dir / "best_model.zip").exists():
+        models.append(run_dir / "best_model.zip")
+    entries = []
+    for zip_path in models:
+        is_best = zip_path.name == "best_model.zip"
+        model_id = "best" if is_best else zip_path.stem.replace("ppo_", "")
+        rec = records.get(model_id, {})
+        model = PPO.load(str(zip_path), device="cpu")
+        meta = {"step": int(model.num_timesteps), "source": zip_path.name}
+        label = ("最佳模型（第 %s 回合）" % rec.get("episode", "?")) if is_best \
+            else "第 %s 回合" % model_id.replace("ep", "")
+        entries.append({"id": model_id, "label": label, "file": "ppo_%s.js" % model_id,
+                        "episode": rec.get("episode"), "step": meta["step"],
+                        "eval": rec.get("eval")})
+        for d in web_model_dirs:
+            write_model(model.policy, model_id, meta, Path(d) / ("ppo_%s.js" % model_id))
+    for d in web_model_dirs:
+        write_manifest(entries, Path(d))
+    return entries
