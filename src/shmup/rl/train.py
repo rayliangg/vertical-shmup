@@ -41,7 +41,7 @@ DEFAULTS = {
     "max_episodes": 5000,              # 玩滿這麼多回合就停（0 = 只看 total_steps）
     "save_episodes": "100,500,2000,5000",
     "total_steps": 300000000,          # 安全上限，通常會先因為 max_episodes 停下來
-    "n_steps": None,                   # 每個環境每次收集幾步再更新（CPU 1024 / GPU 2048）
+    "n_steps": None,                   # 每個環境每次收集幾步再更新（None = 總共 8192 / 16384 步平均分給每局）
     "batch_size": None,                # CPU 256 / GPU 1024
     "hidden": None,                    # 策略網路、價值網路每層幾個單元（CPU 256 / GPU 512）
     "n_epochs": 10,
@@ -60,9 +60,11 @@ DEFAULTS = {
     "out_dir": str(MODELS_DIR / "ppo"),
     "resume": "",                      # 模型路徑，或 "auto"（有 last_model.zip 就接著訓練）
 }
+# rollout = 每次更新前，所有環境加起來收集的步數。用「總數」來設定，
+# 同時玩的局數變多時，每局收集的步數就自動變少，學習速度（每回合學到的東西）才不會變慢。
 PROFILES = {
-    "cpu": {"n_steps": 1024, "batch_size": 256, "hidden": 256},
-    "cuda": {"n_steps": 2048, "batch_size": 1024, "hidden": 512},
+    "cpu": {"rollout": 8192, "batch_size": 256, "hidden": 256},
+    "cuda": {"rollout": 16384, "batch_size": 1024, "hidden": 512},
 }
 
 
@@ -71,10 +73,19 @@ def resolve(cfg):
     cfg = dict(cfg)
     if cfg["device"] == "auto":
         cfg["device"] = "cuda" if torch.cuda.is_available() else "cpu"
+    if cfg["device"].startswith("cuda") and not torch.cuda.is_available():
+        print("=" * 70)
+        print("警告：指定了 --device cuda，但 PyTorch 找不到 GPU，改用 CPU 和 CPU 設定。")
+        print("Colab：執行階段 -> 變更執行階段類型 -> 選 T4 GPU，然後重新執行安裝那一格。")
+        print("=" * 70, flush=True)
+        cfg["device"] = "cpu"
     profile = PROFILES["cuda" if cfg["device"].startswith("cuda") else "cpu"]
-    for key, value in profile.items():
+    for key in ("batch_size", "hidden"):
         if cfg.get(key) is None:
-            cfg[key] = value
+            cfg[key] = profile[key]
+    if cfg.get("n_steps") is None:
+        n_steps = profile["rollout"] // cfg["n_envs"]
+        cfg["n_steps"] = max(128, n_steps // 64 * 64)
     out = Path(cfg["out_dir"])
     if cfg["resume"] == "auto":
         cfg["resume"] = str(out / "last_model.zip") if (out / "last_model.zip").exists() else ""
