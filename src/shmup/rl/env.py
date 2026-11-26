@@ -53,7 +53,7 @@ class ShmupEnv(gym.Env):
         return self.reset_to(int(self.np_random.randint(0, 2 ** 31 - 1)))
 
     def reset_to(self, game_seed):
-        """用指定的遊戲 seed 開新的一局（評估、錄影時用，才能每次玩到同一局）。"""
+        """用指定的遊戲 seed 開新的一局（評估時用，才能每次玩到同一局）。"""
         self.world.reset(game_seed)
         self.t = 0
         return self._obs()

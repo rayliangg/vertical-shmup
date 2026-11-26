@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vertical Shmup · 四個 agent 比較</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="cabinet wide">
+    <header class="marquee">
+      <h1>VERTICAL SHMUP</h1>
+    </header>
+
+    <div class="compare-bar">
+      <span>同一局（seed <b id="seed">100000</b>），第 100 / 500 / 2000 / 5000 回合的 PPO agent 一起玩</span>
+      <span class="compare-buttons">
+        <button id="btn-restart" class="chip">重新開始</button>
+        <button id="btn-new" class="chip">換一局</button>
+        <button id="btn-pause" class="chip">暫停</button>
+        <button data-speed="1" class="chip on">x1</button>
+        <button data-speed="2" class="chip">x2</button>
+        <button data-speed="4" class="chip">x4</button>
+        <a class="chip" href="index.html">自己玩 / 單一模型</a>
+      </span>
+    </div>
+
+    <div id="grid" class="agent-grid"></div>
+
+    <footer>
+      素材：Kenney（CC0）／音樂：Matthew Pablo &ldquo;Orbital Colossus&rdquo;（CC-BY 3.0）
+    </footer>
+  </div>
+
+  <script src="js/rules.js"></script>
+  <script src="js/core.js"></script>
+  <script src="model/manifest.js" onerror="console.info('還沒有模型')"></script>
+  <script src="js/agent.js"></script>
+  <script src="js/renderer.js"></script>
+  <script src="js/compare.js"></script>
+</body>
+</html>

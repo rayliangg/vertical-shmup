@@ -1,6 +1,6 @@
 """訓練好的 PPO 模型怎麼「用」：載入、選動作、匯出給網頁版。
 
-    PPOPolicy                   pygame 自動駕駛、錄影用：選機率最高的動作
+    PPOPolicy                   pygame 自動駕駛用：選機率最高的動作
     write_rules()               web/js/rules.js   （來自 shmup.game.rules，網頁版的遊戲規則）
     write_model(policy)         web/model/ppo_model.js（PPO 策略網路的權重，base64 float32）
 

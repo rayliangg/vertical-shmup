@@ -6,10 +6,9 @@ __pycache__/
 build/
 dist/
 
-# 訓練輸出（模型、報告）和錄影：檔案很大，不放進 git
+# 訓練輸出（模型、報告）：檔案很大，不放進 git
+# 網頁版的模型（web/model/）要放進 git，網頁才能直接看到四個 agent
 models/
-videos/
-web/model/
 
 # 個人筆記
 README2.md

@@ -11,7 +11,7 @@ PPO（Schulman et al., 2017）+ GAE（Schulman et al., 2015），都是 2022 年
     part1.monitor.csv …                每一回合的總獎勵、長度、關卡（畫學習曲線用）
     best_model.zip                     評估時存活最久的模型
     last_model.zip / last_progress.json  最新的模型和目前回合數（續訓用）
-    checkpoints/ppo_ep{N}.zip          第 N 回合時的模型（錄影、報告、網頁選單用）
+    checkpoints/ppo_ep{N}.zip          第 N 回合時的模型（報告、網頁選單用）
     milestones.json / best.json        每個里程碑和最佳模型的紀錄（時間、步數、評估結果）
     web/                               自動匯出的網頁版模型（同時也寫進專案的 web/model/）
 """

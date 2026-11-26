@@ -4,7 +4,6 @@
     train     訓練 PPO（不需要畫面；有 GPU 就用 GPU）
     eval      評估一個模型
     report    學習曲線 + 第 100/500/2000/5000 回合模型的結果表
-    record    把里程碑模型錄成影片
     export    匯出遊戲規則和模型給網頁版
 
 每個指令都可以加 --help 看所有參數。
@@ -13,7 +12,7 @@ import argparse
 import multiprocessing
 from pathlib import Path
 
-from .paths import MODELS_DIR, ROOT
+from .paths import MODELS_DIR
 
 RUN_DIR = MODELS_DIR / "ppo"
 
@@ -47,14 +46,6 @@ def main(argv=None):
     p.add_argument("--run-dir", default=str(RUN_DIR))
     p.add_argument("--episodes", type=int, default=10)
 
-    p = sub.add_parser("record", help="把里程碑模型錄成影片")
-    p.add_argument("--run-dir", default=str(RUN_DIR))
-    p.add_argument("--episodes", type=int, nargs="+", default=[100, 500, 2000, 5000])
-    p.add_argument("--seconds", type=float, default=120, help="每支影片最長幾秒")
-    p.add_argument("--seed", type=int, default=100000, help="每支影片都用這個 seed")
-    p.add_argument("--out", default=str(ROOT / "videos"))
-    p.add_argument("--no-grid", action="store_true", help="不要合成 2x2 對照影片")
-
     p = sub.add_parser("export", help="匯出遊戲規則和所有里程碑模型給網頁版（訓練時會自動做）")
     p.add_argument("--run-dir", default=str(RUN_DIR))
     p.add_argument("--rules-only", action="store_true", help="只匯出規則（改過 game/rules.py 之後）")
@@ -77,10 +68,6 @@ def main(argv=None):
     elif cmd == "report":
         from .rl.evaluate import make_report
         make_report(args.run_dir, args.episodes)
-    elif cmd == "record":
-        from .ui.video import record_all
-        record_all(Path(args.run_dir) / "checkpoints", args.episodes, args.out,
-                   args.seed, args.seconds, not args.no_grid)
     elif cmd == "export":
         from .paths import WEB_DIR
         from .rl.policy import export_run, write_rules

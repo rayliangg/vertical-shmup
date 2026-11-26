@@ -49,7 +49,6 @@ pip install --no-deps -e .
 | `python -m shmup play` | 自己玩（加 `--autopilot` 看 PPO 玩） |
 | `python -m shmup train` | 訓練 PPO（不需要畫面；有 GPU 就用 GPU） |
 | `python -m shmup report` | 學習曲線 + 第 100 / 500 / 2000 / 5000 回合模型的結果表 |
-| `python -m shmup record` | 把第 100 / 500 / 2000 / 5000 回合的模型錄成影片 |
 | `python -m shmup eval` | 用固定的 10 局評估一個模型 |
 | `python -m shmup export` | 匯出遊戲規則和所有里程碑模型給網頁版（訓練時會自動做） |
 
@@ -149,9 +148,9 @@ pip install --no-deps -e .
      │   └─▶ report/results.md           里程碑模型 vs. 亂動 / 不動 兩個對照組
      ▼
 [6] 看結果（這一步才需要畫面）
-     ├─▶ 錄影：  python -m shmup record（四個里程碑模型各一支 + 2x2 對照影片，同一個 seed）
-     ├─▶ pygame：python -m shmup play --autopilot
-     └─▶ 網頁：  web/index.html，用選單選要看第幾回合的模型（純 JavaScript 推論）
+     ├─▶ 網頁：  web/compare.html，第 100 / 500 / 2000 / 5000 回合的 agent 在同一局一起玩（2x2）
+     ├─▶ 網頁：  web/index.html，用選單選一個模型看它玩，或自己玩
+     └─▶ pygame：python -m shmup play --autopilot
 ```
 
 ---
@@ -186,7 +185,7 @@ pip install --no-deps -e .
 
 1. 打開上面的網址，**執行階段 → 變更執行階段類型 → T4 GPU**。
 2. 第一格是設定（回合數、里程碑、GPU、`USE_DRIVE`），需要的話先改。
-3. 依序執行每一格：存放位置（Google Drive）→ 安裝 → 檢查 GPU → 快速測試 → **訓練** → 結果表 → 錄影 → 下載。
+3. 依序執行每一格：存放位置（Google Drive）→ 安裝 → 檢查 GPU → 快速測試 → **訓練** → 結果表 → 下載網頁版模型。
    - 程式碼會自動從 GitHub 下載，不用另外上傳。
    - **安裝**那格會另外裝 Python 3.10.4 和 2022 年 5 月以前的套件（Colab 內建的 Python 3.12 裝不了），約 3–5 分鐘。
 4. `USE_DRIVE = True` 時，所有結果存在 `MyDrive/vertical-shmup/`。**斷線後**重新執行「存放位置」、「安裝」和「訓練」那幾格，
@@ -204,7 +203,6 @@ python -m shmup train                              # 有 GPU 用 GPU 設定，�
 python -m shmup train --device cpu --n-envs 8      # 指定 CPU、同時 8 局
 python -m shmup train --resume auto                # 有上次的存檔就接著訓練
 python -m shmup report                             # 學習曲線 + 結果表
-python -m shmup record                             # 錄影
 ```
 
 預設：同時玩「CPU 核心數」局（每局一個程序）、玩滿 **5000 回合**就停、
@@ -237,7 +235,17 @@ Mac 上建議用 `caffeinate -i python -m shmup train`，訓練期間電腦不�
 python -m http.server 8000          # 在專案根目錄開一個本機伺服器
 ```
 
-打開 <http://localhost:8000/web/>（直接用瀏覽器開 `web/index.html` 也可以）。
+有兩個頁面（直接用瀏覽器開也可以）：
+
+- **<http://localhost:8000/web/compare.html>：四個 agent 一起比較。** 第 100 / 500 / 2000 / 5000 回合的 agent
+  在**同一局**（同一個 seed）上同時玩，排成 2x2，每格即時顯示存活秒數、分數、第幾關，
+  下面還有那個模型訓練時的評估結果。可以「重新開始」、「換一局」、暫停、x1 / x2 / x4 速度。
+  還沒練到的回合會顯示 NOT TRAINED YET，訓練到了重新整理頁面就會出現。
+- **<http://localhost:8000/web/>：自己玩，或選一個模型看它玩。**
+
+訓練好的網頁版模型（`web/model/`）會放進 git，所以 clone 下來就能直接看；
+在 GitHub 的 **Settings → Pages** 把來源設成 `main` 分支的根目錄，就能用
+`https://rayliangg.github.io/vertical-shmup/web/compare.html` 在網路上直接看。
 右邊的 **「AI 模型」選單**可以選要看哪一個：第 100 / 500 / 2000 / 5000 回合，或最佳模型；
 選單下面會顯示那個模型練了幾步、測試時平均撐幾秒、平均打到第幾關、通關幾次。
 換模型之後按「AI 開車」就能直接比較不同訓練程度的差別。
@@ -261,7 +269,7 @@ vertical-shmup/
 ├── setup.py                      安裝設定
 ├── train_on_colab.ipynb          Colab GPU 訓練筆記本
 ├── src/shmup/
-│   ├── __main__.py               命令列：play / train / eval / report / record / export
+│   ├── __main__.py               命令列：play / train / eval / report / export
 │   ├── paths.py                  所有檔案路徑
 │   ├── game/                     【遊戲規則】純模擬，不用 pygame
 │   │   ├── rules.py              所有可調整的數字（網頁版的 rules.js 由它產生）
@@ -276,12 +284,11 @@ vertical-shmup/
 │   │   ├── train.py              PPO 訓練、回合計數、里程碑存檔、續訓
 │   │   ├── evaluate.py           評估、對照組、學習曲線、結果表
 │   │   └── policy.py             載入模型做推論、匯出給網頁版
-│   └── ui/                       【畫面與輸出】只有 play / record 會用到 pygame
+│   └── ui/                       【畫面】只有 play 會用到 pygame
 │       ├── app.py                視窗、輸入、場景
 │       ├── renderer.py           畫面、HUD、右側面板
 │       ├── effects.py            粒子、星空等特效
-│       ├── assets.py             圖片、字型、音效
-│       └── video.py              錄影（ffmpeg）
+│       └── assets.py             圖片、字型、音效
 ├── web/                          網頁版：index.html、style.css、js/（rules、core、agent、renderer、main）
 ├── assets/                       素材（圖片、音效、字型、授權檔）
 └── docs/                         README 用的圖片
@@ -305,13 +312,13 @@ vertical-shmup/
 | torch | 1.11.0（Colab 用 +cu113） | 2022-03-10 | 神經網路、GPU |
 | numpy | 1.22.4 | 2022-05-20 | 觀測向量 |
 | pandas / matplotlib | 1.4.2 / 3.5.2 | 2022-04 / 2022-05 | SB3 的相依、學習曲線 |
-| pygame | 2.1.2 | 2021-12-27 | 自己玩、錄影 |
+| pygame | 2.1.2 | 2021-12-27 | 自己玩（pygame 版） |
 | pip / setuptools / wheel | 22.1.1 / 62.3.2 / 0.37.1 | 2022-05 / 2022-05 / 2021-12 | 安裝 |
 
 其他間接相依（cloudpickle、pillow、packaging…）也全部固定在 `requirements.txt`，每一行都標了發布日期。
 訓練時會把實際用到的版本寫進 `models/ppo/versions.json`。
 
-**不屬於專案本身的工具**：Colab 用 micromamba 下載 Python 3.10.4、錄影用系統的 ffmpeg——
+**不屬於專案本身的工具**：Colab 用 micromamba 下載 Python 3.10.4——
 這些只是安裝或執行用的工具，專案的程式碼不依賴它們的版本。
 
 ### 素材（逐檔比對）
