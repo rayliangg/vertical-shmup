@@ -5,6 +5,10 @@
 
 > 所有素材、演算法、套件都是 **2022 年 12 月 31 日以前**發布的，版本和日期見最後的「2022 年以前檢查」。
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/rayliangg/vertical-shmup/blob/ppo/train_on_colab.ipynb)
+
+**在 Colab 上用 GPU 訓練：** https://colab.research.google.com/github/rayliangg/vertical-shmup/blob/ppo/train_on_colab.ipynb
+
 ![遊戲畫面](docs/screenshots.png)
 
 ---
@@ -178,21 +182,15 @@ pip install --no-deps -e .
 
 ## 在 Colab 上用 GPU 訓練
 
-1. 在電腦上打包程式碼（不含模型和 git 紀錄），把 zip 上傳到 Google Drive 根目錄：
+**Colab 網址：** <https://colab.research.google.com/github/rayliangg/vertical-shmup/blob/ppo/train_on_colab.ipynb>
 
-   ```bash
-   cd ~/Desktop && zip -qr vertical-shmup.zip vertical-shmup -x "vertical-shmup/.git/*" "vertical-shmup/models/*" "vertical-shmup/videos/*" "vertical-shmup/web/model/*" "*/__pycache__/*" "vertical-shmup/README2.md" "*.DS_Store"
-   ```
-
-2. 到 Colab **檔案 → 上傳筆記本**，選 `train_on_colab.ipynb`，**執行階段 → 變更執行階段類型 → T4 GPU**。
-3. 依序執行每一格：
-   - 掛載 Google Drive、解壓縮
-   - **安裝 2022 年的環境**：Colab 內建 Python 3.12 裝不了 2022 年的套件，所以這格會另外裝
-     Python 3.10.8，再裝 `requirements.txt` 和 PyTorch 1.13.1（CUDA 11.7）（約 3–5 分鐘）
-   - **訓練**：`python -m shmup train --device cuda --resume auto`
-   - 報告、錄影、匯出網頁版模型、下載
-4. 所有輸出都在 `MyDrive/shmup/`。**斷線後**重新執行前三格（掛載、解壓縮、安裝），再執行訓練那格，
-   `--resume auto` 會從最後一次評估的存檔接著訓練，回合數也接著算。
+1. 打開上面的網址，**執行階段 → 變更執行階段類型 → T4 GPU**。
+2. 第一格是設定（回合數、里程碑、GPU、`USE_DRIVE`），需要的話先改。
+3. 依序執行每一格：存放位置（Google Drive）→ 安裝 → 檢查 GPU → 快速測試 → **訓練** → 結果表 → 錄影 → 下載。
+   - 程式碼會自動從 GitHub 的 `ppo` 分支下載，不用另外上傳。
+   - **安裝**那格會另外裝 Python 3.10.8 和 2022 年的套件（Colab 內建的 Python 3.12 裝不了），約 3–5 分鐘。
+4. `USE_DRIVE = True` 時，所有結果存在 `MyDrive/vertical-shmup/`。**斷線後**重新執行「存放位置」、「安裝」和「訓練」那幾格，
+   `--resume auto` 會從最後一次存檔接著訓練，回合數也接著算。
 
 **GPU 對這個專案的幫助有限**：瓶頸是 Python 的遊戲模擬（在 CPU 上跑），GPU 只加速「更新網路」那一步。
 Colab 免費版只有 2 個 CPU 核心，所以通常比多核心的電腦慢；GPU 設定用比較大的網路（512）和 batch（1024）來彌補。
