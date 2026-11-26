@@ -31,17 +31,47 @@
   }
  },
  {
-  "id": "best",
-  "label": "最佳模型（第 589 回合）",
-  "file": "ppo_best.js",
-  "episode": 589,
-  "step": 2000000,
+  "id": "ep2000",
+  "label": "第 2000 回合",
+  "file": "ppo_ep2000.js",
+  "episode": 2000,
+  "step": 8828152,
   "eval": {
-   "survival": 6016.4,
-   "seconds": 200.54666666666665,
-   "score": 41857.0,
-   "stage": 2.0,
+   "survival": 5011.4,
+   "seconds": 167.04666666666665,
+   "score": 87090.0,
+   "stage": 1.8,
+   "clears": 4,
+   "episodes": 5
+  }
+ },
+ {
+  "id": "ep5000",
+  "label": "第 5000 回合",
+  "file": "ppo_ep5000.js",
+  "episode": 5000,
+  "step": 23749120,
+  "eval": {
+   "survival": 5341.8,
+   "seconds": 178.06,
+   "score": 35863.0,
+   "stage": 1.8,
    "clears": 0,
+   "episodes": 5
+  }
+ },
+ {
+  "id": "best",
+  "label": "最佳模型（第 2640 回合）",
+  "file": "ppo_best.js",
+  "episode": 2640,
+  "step": 12000000,
+  "eval": {
+   "survival": 6060.6,
+   "seconds": 202.02,
+   "score": 65978.0,
+   "stage": 2.0,
+   "clears": 2,
    "episodes": 5
   }
  }
