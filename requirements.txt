@@ -1,35 +1,32 @@
-# 這個專案的完整套件清單（全部是 2022 年 12 月 31 日以前發布的版本）
-# Python 3.10.8（2022-10）
+# 這個專案的完整套件清單（全部是 2022 年 5 月 27 日以前發布的版本）
+# Python 3.10.4（2022-03-24）
 #
 # 安裝順序很重要：gym 0.21 要用 2022 年的 setuptools 建置，所以要先裝下面三個，再用 --no-build-isolation：
-#   pip install pip==22.3.1 setuptools==65.5.0 wheel==0.38.4
+#   pip install pip==22.1.1 setuptools==62.3.2 wheel==0.37.1
 #   pip install --no-build-isolation gym==0.21.0
 #   pip install -r requirements.txt
-# 用 NVIDIA GPU（例如 Colab）時，torch 改從 CUDA 11.7 的來源安裝：
-#   pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu117 "torch==1.13.1+cu117"
+# 用 NVIDIA GPU（例如 Colab）時，torch 改從 CUDA 11.3 的來源安裝：
+#   pip install -r requirements.txt "torch==1.11.0+cu113" --extra-index-url https://download.pytorch.org/whl/cu113
 
 # 強化學習
-stable-baselines3==1.6.2      # 2022-10-10
+stable-baselines3==1.5.0      # 2022-03-25
 gym==0.21.0                   # 2021-10-06
-torch==1.13.1                 # 2022-12-15
-numpy==1.23.5                 # 2022-11-20
-cloudpickle==2.2.0            # 2022-09-07
-importlib-metadata==4.13.0    # 2022-10-01
-zipp==3.11.0                  # 2022-11-25
-typing-extensions==4.4.0      # 2022-10-06
+torch==1.11.0                 # 2022-03-10
+numpy==1.22.4                 # 2022-05-20
+cloudpickle==2.1.0            # 2022-05-20
+typing-extensions==4.2.0      # 2022-04-17
 
 # 報告（學習曲線、結果表）
-pandas==1.5.2                 # 2022-11-23
-matplotlib==3.6.2             # 2022-11-03
+pandas==1.4.2                 # 2022-04-02
+matplotlib==3.5.2             # 2022-05-03
 python-dateutil==2.8.2        # 2021-07-14
-pytz==2022.7                  # 2022-12-18
+pytz==2022.1                  # 2022-03-20
 six==1.16.0                   # 2021-05-05
-contourpy==1.0.6              # 2022-10-30
 cycler==0.11.0                # 2021-10-29
-fonttools==4.38.0             # 2022-10-21
-kiwisolver==1.4.4             # 2022-07-15
-packaging==22.0               # 2022-12-07
-pillow==9.3.0                 # 2022-10-29
+fonttools==4.33.3             # 2022-04-26
+kiwisolver==1.4.2             # 2022-03-28
+packaging==21.3               # 2021-11-18
+pillow==9.1.1                 # 2022-05-17
 pyparsing==3.0.9              # 2022-05-10
 
 # 遊戲畫面、錄影

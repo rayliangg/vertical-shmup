@@ -1,4 +1,4 @@
-"""用 Stable Baselines3（1.6.2）的 PPO 訓練自動駕駛。
+"""用 Stable Baselines3（1.5.0）的 PPO 訓練自動駕駛。
 
 PPO（Schulman et al., 2017）+ GAE（Schulman et al., 2015），都是 2022 年以前的方法。
 

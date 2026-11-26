@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""安裝設定。版本固定在 requirements.txt（全部 2022 年以前）；這裡只寫範圍。
+"""安裝設定。版本固定在 requirements.txt（全部 2022-05-27 以前）；這裡只寫範圍。
 
     pip install -e .        # 安裝這個專案（之後就能用 python -m shmup …）
 """
@@ -13,13 +13,13 @@ setup(
     packages=find_packages("src"),
     python_requires=">=3.8,<3.11",
     install_requires=[
-        "stable-baselines3==1.6.2",
+        "stable-baselines3==1.5.0",
         "gym==0.21.0",
-        "torch>=1.11,<=1.13.1",
-        "numpy>=1.20,<=1.23.5",
+        "torch>=1.8.1,<=1.11.0",
+        "numpy>=1.20,<=1.22.4",
         "pygame>=2.0,<=2.1.2",
-        "matplotlib<=3.6.2",
-        "pandas<=1.5.2",
+        "matplotlib<=3.5.2",
+        "pandas<=1.4.2",
     ],
     entry_points={"console_scripts": ["shmup = shmup.__main__:main"]},
 )

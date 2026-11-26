@@ -1,4 +1,4 @@
-"""把 World 包成 gym 環境（gym 0.21 的介面），給 Stable Baselines3 1.6 用。
+"""把 World 包成 gym 環境（gym 0.21 的介面），給 Stable Baselines3 1.5 用。
 
 agent 每做一次決策 = 遊戲前進 FRAME_SKIP 個 frame（每秒 30 次決策）。
 觀測是 features.py 的 284 個數字，動作是 18 種（9 個方向 x 一般 / 慢速）。

@@ -3,7 +3,7 @@
 縱向彈幕射擊遊戲，附帶一個用 **Stable Baselines3 的 PPO** 訓練的自動駕駛 agent，
 會自己閃避敵人和子彈、撿道具、打魔王。有 **pygame 版**，也有免安裝的**網頁版**可以直接拿來 demo。
 
-> 所有素材、演算法、套件都是 **2022 年 12 月 31 日以前**發布的，版本和日期見最後的「2022 年以前檢查」。
+> 所有素材、演算法、套件都是 **2022 年 5 月 27 日以前**發布的，版本和日期見最後的「2022 年以前檢查」。
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/rayliangg/vertical-shmup/blob/ppo/train_on_colab.ipynb)
 
@@ -24,19 +24,19 @@
 7. [要訓練多少回合？](#要訓練多少回合)
 8. [網頁版（demo 用）](#網頁版demo-用)
 9. [專案結構](#專案結構)
-10. [2022 年以前檢查](#2022-年以前檢查)
+10. [2022-05-27 以前檢查](#2022-05-27-以前檢查)
 11. [素材來源](#素材來源)
 
 ---
 
 ## 快速開始
 
-這個專案固定使用 2022 年的套件版本，需要 **Python 3.10**（新版 Python 裝不了 2022 年的套件）。
+這個專案固定使用 2022 年 5 月以前的套件版本，需要 **Python 3.10**（新版 Python 裝不了 2022 年 5 月以前的套件）。
 用 conda 開一個獨立的環境，不會影響電腦上其他的 Python：
 
 ```bash
-conda create -y -n shmup2022 -c conda-forge python=3.10.8 pip=22.3.1 setuptools=65.5.0 wheel=0.38.4
-conda activate shmup2022
+conda create -y -n shmup20220527 -c conda-forge python=3.10.4 pip=22.1.1 setuptools=62.3.2 wheel=0.37.1
+conda activate shmup20220527
 pip install --no-build-isolation gym==0.21.0
 pip install -r requirements.txt
 pip install --no-deps -e .
@@ -158,7 +158,7 @@ pip install --no-deps -e .
 
 ## 自動駕駛（PPO）
 
-用 [Stable Baselines3](https://github.com/DLR-RM/stable-baselines3)（1.6.2，2022-10）的 **PPO**。選它的原因：
+用 [Stable Baselines3](https://github.com/DLR-RM/stable-baselines3)（1.5.0，2022-03）的 **PPO**。選它的原因：
 
 - **動作是 18 種離散選擇**：PPO 輸出每個動作的機率，剛好適合（SAC、TD3 是給連續動作的，不適用）。
 - **遊戲模擬可以平行跑**：好幾個程序同時玩，PPO「需要大量資料」的缺點在這裡不是問題。
@@ -188,7 +188,7 @@ pip install --no-deps -e .
 2. 第一格是設定（回合數、里程碑、GPU、`USE_DRIVE`），需要的話先改。
 3. 依序執行每一格：存放位置（Google Drive）→ 安裝 → 檢查 GPU → 快速測試 → **訓練** → 結果表 → 錄影 → 下載。
    - 程式碼會自動從 GitHub 的 `ppo` 分支下載，不用另外上傳。
-   - **安裝**那格會另外裝 Python 3.10.8 和 2022 年的套件（Colab 內建的 Python 3.12 裝不了），約 3–5 分鐘。
+   - **安裝**那格會另外裝 Python 3.10.4 和 2022 年 5 月以前的套件（Colab 內建的 Python 3.12 裝不了），約 3–5 分鐘。
 4. `USE_DRIVE = True` 時，所有結果存在 `MyDrive/vertical-shmup/`。**斷線後**重新執行「存放位置」、「安裝」和「訓練」那幾格，
    `--resume auto` 會從最後一次存檔接著訓練，回合數也接著算。
 
@@ -257,7 +257,7 @@ Safari 不支援 `.ogg` 音效，建議用 Chrome 或 Firefox。
 ```
 vertical-shmup/
 ├── README.md                     說明文件（含素材來源）
-├── requirements.txt              完整套件清單（全部 2022 年以前的版本）
+├── requirements.txt              完整套件清單（全部 2022-05-27 以前的版本）
 ├── setup.py                      安裝設定
 ├── train_on_colab.ipynb          Colab GPU 訓練筆記本
 ├── src/shmup/
@@ -293,25 +293,25 @@ vertical-shmup/
 
 ---
 
-## 2022 年以前檢查
+## 2022-05-27 以前檢查
 
-### 套件（`requirements.txt`，全部 2022-12-31 以前，日期是 PyPI 上該版本的發布日）
+### 套件（`requirements.txt`，全部 2022-05-27 以前，日期是 PyPI 上該版本的發布日）
 
 | 套件 | 版本 | 發布日期 | 用途 |
 |------|------|---------|------|
-| Python | 3.10.8 | 2022-10-11 | 全部 |
-| stable-baselines3 | 1.6.2 | 2022-10-10 | PPO |
+| Python | 3.10.4 | 2022-03-24 | 全部 |
+| stable-baselines3 | 1.5.0 | 2022-03-25 | PPO |
 | gym | 0.21.0 | 2021-10-06 | 環境介面 |
-| torch | 1.13.1（Colab 用 +cu117） | 2022-12-15 | 神經網路、GPU |
-| numpy | 1.23.5 | 2022-11-20 | 觀測向量 |
-| pandas / matplotlib | 1.5.2 / 3.6.2 | 2022-11 | SB3 的相依、學習曲線 |
+| torch | 1.11.0（Colab 用 +cu113） | 2022-03-10 | 神經網路、GPU |
+| numpy | 1.22.4 | 2022-05-20 | 觀測向量 |
+| pandas / matplotlib | 1.4.2 / 3.5.2 | 2022-04 / 2022-05 | SB3 的相依、學習曲線 |
 | pygame | 2.1.2 | 2021-12-27 | 自己玩、錄影 |
-| pip / setuptools / wheel | 22.3.1 / 65.5.0 / 0.38.4 | 2022 | 安裝 |
+| pip / setuptools / wheel | 22.1.1 / 62.3.2 / 0.37.1 | 2022-05 / 2022-05 / 2021-12 | 安裝 |
 
 其他間接相依（cloudpickle、pillow、packaging…）也全部固定在 `requirements.txt`，每一行都標了發布日期。
 訓練時會把實際用到的版本寫進 `models/ppo/versions.json`。
 
-**不屬於專案本身的工具**：Colab 用 micromamba 下載 Python 3.10.8、錄影用系統的 ffmpeg——
+**不屬於專案本身的工具**：Colab 用 micromamba 下載 Python 3.10.4、錄影用系統的 ffmpeg——
 這些只是安裝或執行用的工具，專案的程式碼不依賴它們的版本。
 
 ### 素材（逐檔比對）
