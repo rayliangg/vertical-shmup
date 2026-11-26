@@ -1,13 +1,11 @@
-"""把訓練中存下來的權重拿來玩一局並錄成影片（不用開視窗）。
+"""錄影：把訓練中存下來的模型拿來玩一局並錄成 mp4（不用開視窗）。
 
-    python scripts/record_video.py                              # 錄 10 / 50 / 500 / 2000 回合的 PPO 模型
-    python scripts/record_video.py --episodes 10 2000 --seconds 60
-    python scripts/record_video.py --no-grid                    # 不要合成 2x2 對照影片
+    python -m shmup record                                  # 錄 10 / 50 / 500 / 2000 回合的模型
+    python -m shmup record --episodes 10 2000 --seconds 60
 
-每個權重都用同一個 seed 玩，所以可以直接比較「練越久是不是越會躲」。
+每個模型都用同一個 seed 玩，所以可以直接比較「練越久是不是越會躲」。
 需要電腦裡有 ffmpeg（只用來把畫面壓成 mp4）。輸出在 videos/。
 """
-import argparse
 import os
 import shutil
 import subprocess
@@ -17,15 +15,13 @@ os.environ.setdefault("SDL_VIDEODRIVER", "dummy")      # 不開視窗
 os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
 
-import _bootstrap  # noqa: E402,F401
 import pygame  # noqa: E402
 
-from shmup.agent.env import FRAME_SKIP  # noqa: E402
-from shmup.agent.features import ACTIONS  # noqa: E402
-from shmup.agent.policy import PPOPolicy  # noqa: E402
-from shmup.core import World  # noqa: E402
-from shmup.core import rules as R  # noqa: E402
-from shmup.paths import MODELS_DIR, ROOT  # noqa: E402
+from ..game import World  # noqa: E402
+from ..game import rules as R  # noqa: E402
+from ..rl.env import FRAME_SKIP  # noqa: E402
+from ..rl.features import ACTIONS  # noqa: E402
+from ..rl.policy import PPOPolicy  # noqa: E402
 
 FPS = R.FPS
 
@@ -100,39 +96,24 @@ def make_grid(paths, out_path, width, height):
     print("  2x2 對照影片 -> %s" % out_path)
 
 
-def main():
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--episodes", type=int, nargs="+", default=[10, 50, 500, 2000])
-    ap.add_argument("--checkpoint-dir", default=str(MODELS_DIR / "ppo" / "checkpoints"))
-    ap.add_argument("--seed", type=int, default=100000, help="每支影片都用這個 seed")
-    ap.add_argument("--seconds", type=float, default=120, help="每支影片最長幾秒")
-    ap.add_argument("--out", default=str(ROOT / "videos"))
-    ap.add_argument("--no-grid", action="store_true")
-    args = ap.parse_args()
-
+def record_all(checkpoint_dir, episodes, out_dir, seed=100000, seconds=120, grid=True):
+    """錄每個里程碑模型各一支影片；4 支都有的話再合成 2x2 對照影片。"""
     if shutil.which("ffmpeg") is None:
-        sys.exit("找不到 ffmpeg，請先安裝（macOS：brew install ffmpeg）")
-    os.makedirs(args.out, exist_ok=True)
-
+        sys.exit("找不到 ffmpeg，請先安裝（macOS：brew install ffmpeg；Colab 已內建）")
+    os.makedirs(out_dir, exist_ok=True)
     pygame.init()
-    from shmup.client.assets import Assets
-    from shmup.client.renderer import SCREEN_W, Renderer
+    from .assets import Assets
+    from .renderer import SCREEN_W, Renderer
     screen = pygame.display.set_mode((SCREEN_W, R.HEIGHT))
     renderer = Renderer(screen, Assets())
-
     done = []
-    for ep in args.episodes:
-        ckpt = os.path.join(args.checkpoint_dir, "ppo_ep%d.zip" % ep)
+    for ep in episodes:
+        ckpt = os.path.join(str(checkpoint_dir), "ppo_ep%d.zip" % ep)
         if not os.path.exists(ckpt):
             print("  找不到 %s，跳過" % ckpt)
             continue
-        out = os.path.join(args.out, "episode_%04d.mp4" % ep)
-        record(ckpt, ep, out, args.seed, args.seconds, screen, renderer)
+        out = os.path.join(str(out_dir), "episode_%04d.mp4" % ep)
+        record(ckpt, ep, out, seed, seconds, screen, renderer)
         done.append(out)
-    if not args.no_grid and len(done) == 4:
-        make_grid(done, os.path.join(args.out, "compare_2x2.mp4"), SCREEN_W, R.HEIGHT)
-
-
-if __name__ == "__main__":
-    main()
+    if grid and len(done) == 4:
+        make_grid(done, os.path.join(str(out_dir), "compare_2x2.mp4"), SCREEN_W, R.HEIGHT)

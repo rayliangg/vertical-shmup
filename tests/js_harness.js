@@ -6,13 +6,11 @@ var web = process.argv[2], seed = Number(process.argv[3]), frames = Number(proce
 var modelFile = process.argv[5];
 
 global.atob = function (s) { return Buffer.from(s, "base64").toString("binary"); };
-["js/rules.js", "js/rng.js", "js/core.js", "js/features.js"].forEach(function (f) {
+["js/rules.js", "js/core.js"].forEach(function (f) {
   vm.runInThisContext(fs.readFileSync(path.join(web, f), "utf8"), { filename: f });
 });
-if (modelFile) {
-  vm.runInThisContext(fs.readFileSync(modelFile, "utf8"), { filename: "model.js" });
-  vm.runInThisContext(fs.readFileSync(path.join(web, "js/policy.js"), "utf8"), { filename: "policy.js" });
-}
+if (modelFile) vm.runInThisContext(fs.readFileSync(modelFile, "utf8"), { filename: "model.js" });
+vm.runInThisContext(fs.readFileSync(path.join(web, "js/agent.js"), "utf8"), { filename: "agent.js" });
 var S = global.Shmup, F = S.Features;
 var world = new S.World(seed), trace = [], policy = modelFile ? S.loadPolicy() : null;
 

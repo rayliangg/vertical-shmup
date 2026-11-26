@@ -1,24 +1,96 @@
-"""命令列進入點。
+"""命令列：python -m shmup <指令>
 
-    python -m shmup                    # 自己玩
-    python -m shmup --autopilot        # 看訓練好的 PPO 玩
-    python -m shmup --autopilot --speed 3
+    play      自己玩（--autopilot 看 PPO 玩）
+    train     訓練 PPO（不需要畫面；有 GPU 就用 GPU）
+    eval      評估一個模型
+    report    學習曲線 + 第 10/50/500/2000 回合模型的結果表
+    record    把里程碑模型錄成影片
+    export    匯出遊戲規則和模型給網頁版
+
+每個指令都可以加 --help 看所有參數。
 """
 import argparse
+import multiprocessing
 from pathlib import Path
+
+from .paths import MODELS_DIR, ROOT
+
+RUN_DIR = MODELS_DIR / "ppo"
+
+
+def _add_train_args(p):
+    from .rl.train import DEFAULTS
+    for key, value in DEFAULTS.items():
+        kind = {"n_steps": int, "batch_size": int, "hidden": int}.get(key, type(value))
+        p.add_argument("--" + key.replace("_", "-"), type=kind, default=value)
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(prog="shmup", description="縱向彈幕射擊遊戲")
-    ap.add_argument("--autopilot", action="store_true", help="讓 PPO agent 自動駕駛")
-    ap.add_argument("--model", type=Path, default=None, help="模型檔（預設 models/ppo/best_model.zip）")
-    ap.add_argument("--seed", type=int, default=None, help="每一局都用固定的 seed")
-    ap.add_argument("--speed", type=int, default=1, help="每個畫面 frame 跑幾步模擬（加速用）")
-    args = ap.parse_args(argv)
+    ap = argparse.ArgumentParser(prog="python -m shmup", description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = ap.add_subparsers(dest="command")
 
-    from .client.app import App          # 真的要開視窗時才 import pygame（訓練不會用到）
-    App(args.autopilot, args.model, args.seed, args.speed).run()
+    p = sub.add_parser("play", help="自己玩，或用 --autopilot 看 PPO 玩")
+    p.add_argument("--autopilot", action="store_true")
+    p.add_argument("--model", type=Path, default=RUN_DIR / "best_model.zip")
+    p.add_argument("--seed", type=int, default=None, help="每一局都用固定的 seed")
+    p.add_argument("--speed", type=int, default=1, help="每個畫面 frame 跑幾步模擬（加速用）")
+
+    p = sub.add_parser("train", help="訓練 PPO（預設：用滿 CPU 核心、玩到 2000 回合）")
+    _add_train_args(p)
+
+    p = sub.add_parser("eval", help="用固定的 10 局評估一個模型")
+    p.add_argument("model", nargs="?", default=str(RUN_DIR / "best_model.zip"))
+    p.add_argument("--episodes", type=int, default=10)
+
+    p = sub.add_parser("report", help="學習曲線 + 里程碑模型結果表")
+    p.add_argument("--run-dir", default=str(RUN_DIR))
+    p.add_argument("--episodes", type=int, default=10)
+
+    p = sub.add_parser("record", help="把里程碑模型錄成影片")
+    p.add_argument("--run-dir", default=str(RUN_DIR))
+    p.add_argument("--episodes", type=int, nargs="+", default=[10, 50, 500, 2000])
+    p.add_argument("--seconds", type=float, default=120, help="每支影片最長幾秒")
+    p.add_argument("--seed", type=int, default=100000, help="每支影片都用這個 seed")
+    p.add_argument("--out", default=str(ROOT / "videos"))
+    p.add_argument("--no-grid", action="store_true", help="不要合成 2x2 對照影片")
+
+    p = sub.add_parser("export", help="匯出遊戲規則和模型給網頁版")
+    p.add_argument("--model", default=str(RUN_DIR / "best_model.zip"))
+    p.add_argument("--rules-only", action="store_true", help="只匯出規則（改過 game/rules.py 之後）")
+
+    args = ap.parse_args(argv)
+    cmd = args.command or "play"
+
+    if cmd == "play":
+        from .ui.app import App          # 真的要開視窗時才 import pygame（訓練不會用到）
+        App(getattr(args, "autopilot", False), getattr(args, "model", None),
+            getattr(args, "seed", None), getattr(args, "speed", 1)).run()
+    elif cmd == "train":
+        from .rl.train import train
+        train({k: v for k, v in vars(args).items() if k != "command"})
+    elif cmd == "eval":
+        from stable_baselines3 import PPO
+        from .rl.evaluate import evaluate, format_eval, model_actor
+        model = PPO.load(args.model, device="cpu")
+        print(format_eval(evaluate(model_actor(model), args.episodes)))
+    elif cmd == "report":
+        from .rl.evaluate import make_report
+        make_report(args.run_dir, args.episodes)
+    elif cmd == "record":
+        from .ui.video import record_all
+        record_all(Path(args.run_dir) / "checkpoints", args.episodes, args.out,
+                   args.seed, args.seconds, not args.no_grid)
+    elif cmd == "export":
+        from .rl.policy import write_model, write_rules
+        print("已輸出", write_rules())
+        if not args.rules_only:
+            from stable_baselines3 import PPO
+            model = PPO.load(args.model, device="cpu")
+            meta = {"step": int(model.num_timesteps), "source": Path(args.model).name}
+            print("已輸出", write_model(model.policy, meta))
 
 
 if __name__ == "__main__":
+    multiprocessing.freeze_support()
     main()

@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
-"""安裝設定。
+"""安裝設定。版本固定在 requirements.txt（全部 2022 年以前）；這裡只寫範圍。
 
-    pip install -e .                # 只裝遊戲模擬需要的 numpy
-    pip install -e ".[game]"        # 加上 pygame，才能開視窗玩
-    pip install -e ".[game,rl]"     # 再加上 Stable Baselines3（含 PyTorch、gymnasium），才能訓練 / 自動駕駛
+    pip install -e .        # 安裝這個專案（之後就能用 python -m shmup …）
 """
 from setuptools import find_packages, setup
 
@@ -13,12 +11,15 @@ setup(
     description="縱向彈幕射擊遊戲 + Stable Baselines3 PPO 自動駕駛",
     package_dir={"": "src"},
     packages=find_packages("src"),
-    python_requires=">=3.9",
-    install_requires=["numpy>=1.20"],
-    extras_require={
-        "game": ["pygame>=2.0"],
-        "rl": ["stable-baselines3>=2.0", "gymnasium>=0.28"],
-        "dev": ["pytest>=6.0"],
-    },
+    python_requires=">=3.8,<3.11",
+    install_requires=[
+        "stable-baselines3==1.6.2",
+        "gym==0.21.0",
+        "torch>=1.11,<=1.13.1",
+        "numpy>=1.20,<=1.23.5",
+        "pygame>=2.0,<=2.1.2",
+        "matplotlib<=3.6.2",
+        "pandas<=1.5.2",
+    ],
     entry_points={"console_scripts": ["shmup = shmup.__main__:main"]},
 )

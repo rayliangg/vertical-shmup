@@ -5,10 +5,38 @@
 """
 import math
 
-from . import patterns
 from . import rules as R
+from .entities import Bullet
 
 HALF_PI = math.pi / 2
+TAU = 2 * math.pi
+
+
+# --- 彈幕的發射方式（所有敵人共用：自機狙、扇形、環形） ------------------------
+def aim_angle(x, y, target):
+    return math.atan2(target.y - y, target.x - x)
+
+
+def single(out, x, y, angle, speed, kind="orb"):
+    out.append(Bullet(x, y, math.cos(angle) * speed, math.sin(angle) * speed, kind))
+
+
+def fan(out, x, y, angle, speed, count, spread, kind="orb"):
+    """以 `angle` 為中心，在 `spread` 弧度內平均射出 `count` 顆。"""
+    if count == 1:
+        single(out, x, y, angle, speed, kind)
+        return
+    start = angle - spread / 2
+    step = spread / (count - 1)
+    for i in range(count):
+        single(out, x, y, start + step * i, speed, kind)
+
+
+def ring(out, x, y, count, speed, offset=0.0, kind="orb"):
+    """一整圈平均射出 `count` 顆。"""
+    step = TAU / count
+    for i in range(count):
+        single(out, x, y, offset + step * i, speed, kind)
 
 
 class Enemy:
@@ -68,8 +96,8 @@ def _scout(e, w):
     if e.y > 0:
         e.fire_timer -= 1
         if e.fire_timer <= 0:
-            a = patterns.aim_angle(e.x, e.y, w.player)
-            patterns.single(w.bullets, e.x, e.y, a, 3.0 * w.bullet_speed)
+            a = aim_angle(e.x, e.y, w.player)
+            single(w.bullets, e.x, e.y, a, 3.0 * w.bullet_speed)
             e.fire_timer = interval(90, w.difficulty)
     if e.y > R.HEIGHT + 40:
         e.alive = False
@@ -83,7 +111,7 @@ def _weaver(e, w):
     if e.y > 0:
         e.fire_timer -= 1
         if e.fire_timer <= 0:
-            patterns.fan(w.bullets, e.x, e.y, HALF_PI, 2.6 * w.bullet_speed, 3, 0.5)
+            fan(w.bullets, e.x, e.y, HALF_PI, 2.6 * w.bullet_speed, 3, 0.5)
             e.fire_timer = interval(110, w.difficulty)
     if e.y > R.HEIGHT + 40:
         e.alive = False
@@ -97,7 +125,7 @@ def _diver(e, w):
     elif e.state == 1:                    # 鎖定玩家（畫面上會抖動提示）
         e.timer -= 1
         if e.timer <= 0:
-            a = patterns.aim_angle(e.x, e.y, w.player)
+            a = aim_angle(e.x, e.y, w.player)
             speed = 7.5 * w.bullet_speed
             e.vx, e.vy = math.cos(a) * speed, math.sin(a) * speed
             e.state = 2
@@ -119,12 +147,12 @@ def _gunship(e, w):
         e.fire_timer -= 1
         if e.fire_timer <= 0:
             count = 10 + 2 * min(w.stage - 1, 4)
-            patterns.ring(w.bullets, e.x, e.y, count, 2.2 * w.bullet_speed, e.age * 0.05)
+            ring(w.bullets, e.x, e.y, count, 2.2 * w.bullet_speed, e.age * 0.05)
             e.fire_timer = interval(80, w.difficulty)
         e.alt_timer -= 1
         if e.alt_timer <= 0:
-            a = patterns.aim_angle(e.x, e.y, w.player)
-            patterns.single(w.bullets, e.x, e.y, a, 5.5 * w.bullet_speed, "laser")
+            a = aim_angle(e.x, e.y, w.player)
+            single(w.bullets, e.x, e.y, a, 5.5 * w.bullet_speed, "laser")
             e.alt_timer = interval(55, w.difficulty)
         e.timer -= 1
         if e.timer <= 0:
@@ -143,7 +171,6 @@ def _meteor(e, w):
 
 
 # --- 魔王 -------------------------------------------------------------------
-TAU = 2 * math.pi
 ENTRY_Y = {"boss_warden": 130.0, "boss_fang": 120.0}
 
 
@@ -192,31 +219,31 @@ def _warden(e, w):
     bs, d = w.bullet_speed, w.difficulty
     if e.phase_index == 0:
         if e.fire_timer <= 0:
-            a = patterns.aim_angle(e.x, e.y, w.player)
-            patterns.fan(w.bullets, e.x, e.y + 30, a, 3.4 * bs, 5, 0.6)
+            a = aim_angle(e.x, e.y, w.player)
+            fan(w.bullets, e.x, e.y + 30, a, 3.4 * bs, 5, 0.6)
             e.fire_timer = interval(50, d)
         if e.alt_timer <= 0:
-            patterns.ring(w.bullets, e.x, e.y, 20, 1.9 * bs, e.amp, "big")
+            ring(w.bullets, e.x, e.y, 20, 1.9 * bs, e.amp, "big")
             e.amp += 0.3
             e.alt_timer = interval(130, d)
     elif e.phase_index == 1:
         if e.fire_timer <= 0:
-            patterns.single(w.bullets, e.x, e.y, e.amp, 2.5 * bs)
-            patterns.single(w.bullets, e.x, e.y, e.amp + math.pi, 2.5 * bs)
+            single(w.bullets, e.x, e.y, e.amp, 2.5 * bs)
+            single(w.bullets, e.x, e.y, e.amp + math.pi, 2.5 * bs)
             e.amp += 0.22
             e.fire_timer = 5
         if e.alt_timer <= 0:
-            a = patterns.aim_angle(e.x, e.y, w.player)
-            patterns.fan(w.bullets, e.x, e.y + 30, a, 6.0 * bs, 3, 0.25, "laser")
+            a = aim_angle(e.x, e.y, w.player)
+            fan(w.bullets, e.x, e.y + 30, a, 6.0 * bs, 3, 0.25, "laser")
             e.alt_timer = interval(90, d)
     else:
         if e.fire_timer <= 0:
-            patterns.ring(w.bullets, e.x, e.y, 24, 2.4 * bs, e.amp)
+            ring(w.bullets, e.x, e.y, 24, 2.4 * bs, e.amp)
             e.amp += 0.13
             e.fire_timer = interval(30, d)
         if e.alt_timer <= 0:
-            a = patterns.aim_angle(e.x, e.y, w.player)
-            patterns.single(w.bullets, e.x, e.y + 30, a, 4.2 * bs)
+            a = aim_angle(e.x, e.y, w.player)
+            single(w.bullets, e.x, e.y + 30, a, 4.2 * bs)
             e.alt_timer = 10
 
 
@@ -240,28 +267,28 @@ def _fang(e, w):
         if e.fire_timer <= 0:
             for side in (-1, 1):
                 gx, gy = e.x + side * 50, e.y + 20
-                a = patterns.aim_angle(gx, gy, w.player)
-                patterns.fan(w.bullets, gx, gy, a, 5.5 * bs, 3, 0.2, "laser")
+                a = aim_angle(gx, gy, w.player)
+                fan(w.bullets, gx, gy, a, 5.5 * bs, 3, 0.2, "laser")
             e.fire_timer = interval(30, d)
         if e.alt_timer <= 0:
-            patterns.ring(w.bullets, e.x, e.y, 12, 2.0 * bs, e.amp)
+            ring(w.bullets, e.x, e.y, 12, 2.0 * bs, e.amp)
             e.amp += 0.25
             e.alt_timer = interval(60, d)
     elif e.phase_index == 1:
         if e.fire_timer <= 0:
             for k in range(4):
-                patterns.single(w.bullets, e.x, e.y, e.amp + k * HALF_PI, 2.6 * bs)
-                patterns.single(w.bullets, e.x, e.y, -e.amp + k * HALF_PI + 0.4, 2.2 * bs)
+                single(w.bullets, e.x, e.y, e.amp + k * HALF_PI, 2.6 * bs)
+                single(w.bullets, e.x, e.y, -e.amp + k * HALF_PI + 0.4, 2.2 * bs)
             e.amp += 0.17
             e.fire_timer = interval(24, d)
     else:
         if e.fire_timer <= 0:
-            patterns.ring(w.bullets, e.x, e.y, 18, 2.0 * bs, e.amp, "big")
+            ring(w.bullets, e.x, e.y, 18, 2.0 * bs, e.amp, "big")
             e.amp += 0.17
             e.fire_timer = interval(45, d)
         if e.alt_timer <= 0:
-            a = patterns.aim_angle(e.x, e.y, w.player)
-            patterns.single(w.bullets, e.x, e.y + 30, a, 4.4 * bs)
+            a = aim_angle(e.x, e.y, w.player)
+            single(w.bullets, e.x, e.y + 30, a, 4.4 * bs)
             e.alt_timer = 8
 
 

@@ -1,6 +1,6 @@
-from shmup.core import World
-from shmup.core import rules as R
-from shmup.core.entities import Bullet
+from shmup.game import World
+from shmup.game import rules as R
+from shmup.game.entities import Bullet
 
 
 def run(world, frames, immortal=True):

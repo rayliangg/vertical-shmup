@@ -1,6 +1,6 @@
 @font-face {
   font-family: "KenVector";
-  src: url("../../assets/fonts/kenvector_future.ttf") format("truetype");
+  src: url("../assets/fonts/kenvector_future.ttf") format("truetype");
 }
 
 * { box-sizing: border-box; }
@@ -8,7 +8,7 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background: #000 url("../../assets/images/backgrounds/dark_purple.png") repeat;
+  background: #000 url("../assets/images/backgrounds/dark_purple.png") repeat;
   color: #ddd;
   font: 14px/1.5 "KenVector", "PingFang TC", "Microsoft JhengHei", sans-serif;
 }
@@ -88,9 +88,9 @@ button { font: inherit; cursor: pointer; }
   font-size: 13px;
   background: transparent center / 100% 100% no-repeat;
 }
-.arcade.green  { background-image: url("../../assets/images/ui/button_green.png"); }
-.arcade.blue   { background-image: url("../../assets/images/ui/button_blue.png"); }
-.arcade.yellow { background-image: url("../../assets/images/ui/button_yellow.png"); }
+.arcade.green  { background-image: url("../assets/images/ui/button_green.png"); }
+.arcade.blue   { background-image: url("../assets/images/ui/button_blue.png"); }
+.arcade.yellow { background-image: url("../assets/images/ui/button_yellow.png"); }
 .arcade:active { transform: translateY(2px); }
 .arcade.on     { outline: 3px solid #3ddc55; color: #0a6b1c; }
 .arcade:disabled { filter: grayscale(1); opacity: .5; cursor: not-allowed; }

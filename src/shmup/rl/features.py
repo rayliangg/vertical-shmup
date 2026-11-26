@@ -12,7 +12,7 @@ web/js/features.js 是逐行對應的版本（tests/test_web_parity.py 會檢查
 """
 import math
 
-from ..core import rules as R
+from ..game import rules as R
 
 # 動作編號 -> (dx, dy, 是否慢速)
 _DIRS = ((0, 0), (-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (1, -1), (-1, 1), (1, 1))

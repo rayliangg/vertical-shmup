@@ -3,13 +3,12 @@ import sys
 
 import pygame
 
-from ..agent.env import FRAME_SKIP
-from ..agent.features import ACTIONS, observe
-from ..core import World
-from ..core import rules as R
+from ..rl.env import FRAME_SKIP
+from ..rl.features import ACTIONS, observe
+from ..game import World
+from ..game import rules as R
 from ..paths import HIGHSCORE_FILE, MODELS_DIR
-from .assets import Assets
-from .audio import Audio
+from .assets import Assets, Audio
 from .renderer import SCREEN_W, Renderer, YELLOW
 
 CONTROLS = (
@@ -26,10 +25,10 @@ TITLE, PLAYING, PAUSED, GAME_OVER = "title", "playing", "paused", "game_over"
 def load_policy(path):
     """載入 PPO 自動駕駛；載入失敗就印出原因並回傳 None。"""
     if not path.exists():
-        print("找不到模型 %s，請先用 scripts/train_cpu.py 訓練" % path, file=sys.stderr)
+        print("找不到模型 %s，請先執行 python -m shmup train" % path, file=sys.stderr)
         return None
     try:
-        from ..agent.policy import PPOPolicy
+        from ..rl.policy import PPOPolicy
     except ImportError:
         print("自動駕駛需要 Stable Baselines3：pip install stable-baselines3", file=sys.stderr)
         return None

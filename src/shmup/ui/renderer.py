@@ -3,8 +3,8 @@ import math
 
 import pygame
 
-from ..agent.features import ACTIONS, CELL, GRID, OFF_GRID
-from ..core import rules as R
+from ..rl.features import ACTIONS, CELL, GRID, OFF_GRID
+from ..game import rules as R
 from .effects import Effects, faded
 
 BACKGROUNDS = ("dark_purple.png", "blue.png", "purple.png", "black.png")

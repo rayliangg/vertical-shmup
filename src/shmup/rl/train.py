@@ -1,18 +1,23 @@
-"""用 Stable Baselines3 的 PPO 訓練自動駕駛。
+"""用 Stable Baselines3（1.6.2）的 PPO 訓練自動駕駛。
 
-PPO（Proximal Policy Optimization, Schulman et al., 2017）+ GAE（Schulman et al., 2015），
-都是 2022 年以前發表的方法。執行入口：scripts/train_cpu.py 和 scripts/train_gpu.py。
+PPO（Schulman et al., 2017）+ GAE（Schulman et al., 2015），都是 2022 年以前的方法。
 
-存檔位置（預設 models/ppo/）：
-    best_model.zip                    評估時存活最久的模型
-    last_model.zip + last_progress.json   最新的模型和目前回合數（--resume 用）
-    checkpoints/ppo_ep{N}.zip         第 N 回合時的模型（--save-episodes 指定）
+    python -m shmup train                         # 有 GPU 就用 GPU 設定，玩到 2000 回合
+    python -m shmup train --device cpu            # 強制用 CPU 設定
+    python -m shmup train --resume auto           # 有上次的存檔就接著訓練（Colab 斷線後用）
+
+一次訓練的輸出（預設 models/ppo/）：
+    config.json / versions.json        這次用的超參數、套件版本（之後才知道怎麼重現）
+    part1.monitor.csv …                每一回合的總獎勵、長度、關卡（畫學習曲線用）
+    best_model.zip                     評估時存活最久的模型
+    last_model.zip / last_progress.json  最新的模型和目前回合數（續訓用）
+    checkpoints/ppo_ep{N}.zip          第 N 回合時的模型（錄影、報告用）
 """
-import argparse
 import json
 import os
+import platform
 import time
-from collections import OrderedDict, deque
+from collections import deque
 from pathlib import Path
 
 import numpy as np
@@ -22,76 +27,63 @@ from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecMonitor
 
 from ..paths import MODELS_DIR
-from .env import MAX_STEPS, ShmupEnv
+from .env import ShmupEnv
+from .evaluate import evaluate, format_eval, model_actor
 
-EVAL_SEED = 100000                 # 評估固定用 seed 100000、100001 …，不同模型才能公平比較
-
-DEFAULTS = OrderedDict([
-    ("device", "cpu"),
-    ("n_envs", os.cpu_count() or 4),   # 同時玩幾局；每一局一個程序，預設 = CPU 核心數
-    ("max_episodes", 2000),            # 玩滿這麼多回合就停（0 = 只看 total_steps）
-    ("save_episodes", "10,50,500,2000"),
-    ("total_steps", 50000000),         # 安全上限，通常會先因為 max_episodes 停下來
-    ("n_steps", 1024),                 # 每個環境每次收集幾步再更新（rollout 長度）
-    ("batch_size", 256),
-    ("n_epochs", 10),                  # 每批資料重複學幾輪
-    ("lr", 2.5e-4),
-    ("gamma", 0.99),
-    ("gae_lambda", 0.95),
-    ("clip_range", 0.2),
-    ("ent_coef", 0.01),                # 鼓勵探索：讓動作分布不要太快變成只選一個
-    ("vf_coef", 0.5),
-    ("max_grad_norm", 0.5),
-    ("hidden", 256),                   # 策略網路和價值網路各兩層、每層幾個單元
-    ("eval_every", 200000),            # 每幾步評估一次並更新 best_model
-    ("eval_episodes", 5),
-    ("milestone_eval", 5),             # 存里程碑時順便評估幾局
-    ("seed", 1),
-    ("threads", 2),                    # torch 用幾個 CPU 執行緒（這個網路很小，2 個最快）
-    ("out_dir", str(MODELS_DIR / "ppo")),
-    ("resume", ""),                    # 要接著訓練的模型，例如 models/ppo/last_model.zip
-])
-
-
-def build_arg_parser(description, overrides):
-    """每個超參數都變成命令列參數；`overrides` 用來改預設值。"""
-    cfg = OrderedDict(DEFAULTS)
-    cfg.update(overrides)
-    ap = argparse.ArgumentParser(description=description,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    for key, value in cfg.items():
-        ap.add_argument("--" + key.replace("_", "-"), type=type(value), default=value)
-    ap.add_argument("--eval-only", default="", metavar="MODEL",
-                    help="不訓練，只評估這個模型檔（例如 models/ppo/best_model.zip）")
-    return ap
+# 所有超參數；命令列的 --xxx 會蓋掉這裡的值。None 表示「依 CPU / GPU 設定決定」。
+DEFAULTS = {
+    "device": "auto",                  # auto：有 CUDA 就用 GPU 設定
+    "n_envs": os.cpu_count() or 4,     # 同時玩幾局；每一局一個程序，預設 = CPU 核心數
+    "max_episodes": 2000,              # 玩滿這麼多回合就停（0 = 只看 total_steps）
+    "save_episodes": "10,50,500,2000",
+    "total_steps": 50000000,           # 安全上限，通常會先因為 max_episodes 停下來
+    "n_steps": None,                   # 每個環境每次收集幾步再更新（CPU 1024 / GPU 2048）
+    "batch_size": None,                # CPU 256 / GPU 1024
+    "hidden": None,                    # 策略網路、價值網路每層幾個單元（CPU 256 / GPU 512）
+    "n_epochs": 10,
+    "lr": 2.5e-4,
+    "gamma": 0.99,
+    "gae_lambda": 0.95,
+    "clip_range": 0.2,
+    "ent_coef": 0.01,
+    "vf_coef": 0.5,
+    "max_grad_norm": 0.5,
+    "eval_every": 200000,              # 每幾步評估一次並更新 best_model
+    "eval_episodes": 5,
+    "milestone_eval": 5,
+    "seed": 1,
+    "threads": 2,                      # torch 用幾個 CPU 執行緒
+    "out_dir": str(MODELS_DIR / "ppo"),
+    "resume": "",                      # 模型路徑，或 "auto"（有 last_model.zip 就接著訓練）
+}
+PROFILES = {
+    "cpu": {"n_steps": 1024, "batch_size": 256, "hidden": 256},
+    "cuda": {"n_steps": 2048, "batch_size": 1024, "hidden": 512},
+}
 
 
-# ---------------------------------------------------------------------------
-# 評估
-# ---------------------------------------------------------------------------
-def evaluate(model, episodes=5, seed=EVAL_SEED, max_steps=MAX_STEPS):
-    """用固定的 seed、選機率最高的動作（不隨機）玩幾局。"""
-    env = ShmupEnv(max_steps)
-    lengths, scores, stages, clears = [], [], [], 0
-    for i in range(episodes):
-        obs, _ = env.reset(seed=seed + i)
-        while True:
-            action, _ = model.predict(obs, deterministic=True)
-            obs, _, term, trunc, info = env.step(int(action))
-            if term or trunc:
-                break
-        lengths.append(info["t"])
-        scores.append(info["score"])
-        stages.append(info["stage"])
-        clears += 1 if info["cleared"] else 0
-    return {"survival": float(np.mean(lengths)), "seconds": float(np.mean(lengths)) / 30.0,
-            "score": float(np.mean(scores)), "stage": float(np.mean(stages)), "clears": clears,
-            "episodes": episodes}
+def resolve(cfg):
+    """把 auto / None 換成實際的值。"""
+    cfg = dict(cfg)
+    if cfg["device"] == "auto":
+        cfg["device"] = "cuda" if torch.cuda.is_available() else "cpu"
+    profile = PROFILES["cuda" if cfg["device"].startswith("cuda") else "cpu"]
+    for key, value in profile.items():
+        if cfg.get(key) is None:
+            cfg[key] = value
+    out = Path(cfg["out_dir"])
+    if cfg["resume"] == "auto":
+        cfg["resume"] = str(out / "last_model.zip") if (out / "last_model.zip").exists() else ""
+    return cfg
 
 
-def format_eval(s):
-    return ("存活 %.0f 步（%.1f 秒）  分數 %.0f  平均第 %.2f 關  ALL CLEAR %d/%d"
-            % (s["survival"], s["seconds"], s["score"], s["stage"], s["clears"], s["episodes"]))
+def versions():
+    import gym
+    import stable_baselines3
+    return {"python": platform.python_version(), "torch": torch.__version__,
+            "stable_baselines3": stable_baselines3.__version__, "gym": gym.__version__,
+            "numpy": np.__version__, "cuda": torch.version.cuda,
+            "gpu": torch.cuda.get_device_name(0) if torch.cuda.is_available() else None}
 
 
 # ---------------------------------------------------------------------------
@@ -150,11 +142,11 @@ class ProgressCallback(BaseCallback):
         path = self.out / "checkpoints" / ("ppo_ep%d.zip" % m)
         path.parent.mkdir(parents=True, exist_ok=True)
         self.model.save(str(path))
-        stats = evaluate(self.model, self.cfg["milestone_eval"])
+        stats = evaluate(model_actor(self.model), self.cfg["milestone_eval"])
         print("  [第 %d 回合] 存檔 %s | %s" % (m, path, format_eval(stats)), flush=True)
 
     def _evaluate(self):
-        stats = evaluate(self.model, self.cfg["eval_episodes"])
+        stats = evaluate(model_actor(self.model), self.cfg["eval_episodes"])
         print("  eval：%s" % format_eval(stats), flush=True)
         if stats["survival"] > self.best:
             self.best = stats["survival"]
@@ -163,34 +155,31 @@ class ProgressCallback(BaseCallback):
         self.save_last()
 
     def save_last(self):
-        self.out.mkdir(parents=True, exist_ok=True)
         self.model.save(str(self.out / "last_model.zip"))
-        with open(str(self.out / "last_progress.json"), "w") as f:
-            json.dump({"episodes": self.episodes, "steps": int(self.num_timesteps),
-                       "best": self.best}, f)
+        (self.out / "last_progress.json").write_text(json.dumps(
+            {"episodes": self.episodes, "steps": int(self.num_timesteps), "best": self.best}))
 
 
 # ---------------------------------------------------------------------------
 # 訓練
 # ---------------------------------------------------------------------------
-def make_env(rank, seed):
-    def _init():
-        env = ShmupEnv()
-        env.reset(seed=seed * 10007 + rank)
-        return env
-    return _init
+def make_env():
+    return ShmupEnv()
 
 
 def train(cfg):
+    cfg = resolve(cfg)
     if cfg["threads"] > 0:
         torch.set_num_threads(cfg["threads"])
     out = Path(cfg["out_dir"])
     out.mkdir(parents=True, exist_ok=True)
+
     n = cfg["n_envs"]
-    fns = [make_env(i, cfg["seed"]) for i in range(n)]
-    venv = SubprocVecEnv(fns, start_method="spawn") if n > 1 else DummyVecEnv(fns)
-    venv = VecMonitor(venv)
-    venv.seed(cfg["seed"])
+    venv = SubprocVecEnv([make_env] * n, start_method="spawn") if n > 1 else DummyVecEnv([make_env])
+    part = len(list(out.glob("part*.monitor.csv"))) + 1          # 續訓時不覆蓋之前的紀錄
+    venv = VecMonitor(venv, filename=str(out / ("part%d.monitor.csv" % part)),
+                      info_keywords=("stage", "cleared"))
+    venv.seed(cfg["seed"] * 1000 + part)
 
     start_episodes, best = 0, -1.0
     if cfg["resume"]:
@@ -209,12 +198,14 @@ def train(cfg):
             learning_rate=cfg["lr"], gamma=cfg["gamma"], gae_lambda=cfg["gae_lambda"],
             clip_range=cfg["clip_range"], ent_coef=cfg["ent_coef"], vf_coef=cfg["vf_coef"],
             max_grad_norm=cfg["max_grad_norm"],
-            policy_kwargs=dict(net_arch=dict(pi=[h, h], vf=[h, h])),
+            policy_kwargs=dict(net_arch=[dict(pi=[h, h], vf=[h, h])]),
             seed=cfg["seed"], device=cfg["device"], verbose=0)
 
+    (out / "config.json").write_text(json.dumps(cfg, ensure_ascii=False, indent=2))
+    (out / "versions.json").write_text(json.dumps(versions(), indent=2))
     n_params = sum(p.numel() for p in model.policy.parameters())
     print("PPO  device=%s  同時 %d 局（%d 個程序）  參數 %d 個" % (model.device, n, n, n_params))
-    print(json.dumps(cfg, ensure_ascii=False))
+    print(json.dumps(versions()))
 
     cb = ProgressCallback(cfg, start_episodes, best)
     try:
@@ -227,16 +218,7 @@ def train(cfg):
         venv.close()
     if not (out / "best_model.zip").exists():
         model.save(str(out / "best_model.zip"))
-    elapsed = (time.time() - cb.start_time) / 60
-    print("共 %d 步、%d 回合，花了 %.1f 分鐘。最新模型：%s"
-          % (model.num_timesteps, cb.episodes, elapsed, out / "last_model.zip"))
-    print("匯出給網頁版：python scripts/export_web.py")
+    print("共 %d 步、%d 回合，花了 %.1f 分鐘。"
+          % (model.num_timesteps, cb.episodes, (time.time() - cb.start_time) / 60))
+    print("下一步：python -m shmup report   （學習曲線 + 結果表）")
     return model
-
-
-def run(cfg, eval_only=""):
-    if eval_only:
-        model = PPO.load(eval_only, device="cpu")
-        print(format_eval(evaluate(model, 10)))
-    else:
-        train(cfg)

@@ -1,6 +1,6 @@
 """遊戲規則：所有可以調整的數字都只寫在這裡。
 
-這裡只放數字、字串、tuple 和 dict，因為 `scripts/export_web.py`
+這裡只放數字、字串、tuple 和 dict，因為 `python -m shmup export`
 會把整個檔案轉成 `web/js/rules.js`，讓網頁版和 Python 版的規則完全一樣。
 """
 

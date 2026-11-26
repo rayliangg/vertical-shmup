@@ -7,7 +7,7 @@ import random
 
 import pygame
 
-from ..core import rules as R
+from ..game import rules as R
 
 
 def faded(surf, alpha):

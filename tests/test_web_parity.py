@@ -6,9 +6,9 @@ import subprocess
 
 import pytest
 
-from shmup.agent.export import rules_js
-from shmup.agent.features import ACTIONS, observe
-from shmup.core import World
+from shmup.rl.policy import rules_js
+from shmup.rl.features import ACTIONS, observe
+from shmup.game import World
 from shmup.paths import ROOT, WEB_DIR
 
 NODE = shutil.which("node")
@@ -45,7 +45,7 @@ def node_trace(seed, frames, model_js=None):
 
 def test_rules_js_is_up_to_date():
     assert (WEB_DIR / "js" / "rules.js").read_text() == rules_js(), \
-        "web/js/rules.js 過期了：請執行 python scripts/export_web.py --rules-only"
+        "web/js/rules.js 過期了：請執行 python -m shmup export --rules-only"
 
 
 @pytest.mark.skipif(NODE is None, reason="沒有安裝 node.js")
@@ -68,11 +68,11 @@ def test_exported_policy_matches_torch(tmp_path):
     """匯出到網頁版的 PPO 策略網路，在 JS 算出的動作機率要和 PyTorch 一樣。"""
     pytest.importorskip("stable_baselines3")
     from stable_baselines3 import PPO
-    from shmup.agent.env import ShmupEnv
-    from shmup.agent.export import write_model
+    from shmup.rl.env import ShmupEnv
+    from shmup.rl.policy import write_model
 
     model = PPO("MlpPolicy", ShmupEnv(), seed=0, device="cpu",
-                policy_kwargs=dict(net_arch=dict(pi=[64, 64], vf=[64, 64])))
+                policy_kwargs=dict(net_arch=[dict(pi=[64, 64], vf=[64, 64])]))
     model_js = write_model(model.policy, {"step": 0}, tmp_path / "model.js")
     py, js = python_trace(3, 600, model.policy), node_trace(3, 600, model_js)
     for a, b in zip(py, js):

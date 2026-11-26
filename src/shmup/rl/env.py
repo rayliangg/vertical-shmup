@@ -1,12 +1,18 @@
-"""把 World 包成 gymnasium 環境，給 Stable Baselines3 用。
+"""把 World 包成 gym 環境（gym 0.21 的介面），給 Stable Baselines3 1.6 用。
 
 agent 每做一次決策 = 遊戲前進 FRAME_SKIP 個 frame（每秒 30 次決策）。
 觀測是 features.py 的 284 個數字，動作是 18 種（9 個方向 x 一般 / 慢速）。
-"""
-import gymnasium as gym
-import numpy as np
 
-from ..core import World
+gym 0.21 的介面：
+    reset()        -> obs
+    step(action)   -> obs, reward, done, info
+時間到被截斷時 info["TimeLimit.truncated"] = True，SB3 會把它當成「還沒死，只是被切斷」。
+"""
+import gym
+import numpy as np
+from gym.utils import seeding
+
+from ..game import World
 from .features import ACTIONS, N_ACTIONS, OBS_DIM, observe
 
 FRAME_SKIP = 2
@@ -24,29 +30,33 @@ REWARD_CLEAR = 5.0              # 打倒最後一關的兩隻魔王（ALL CLEAR�
 
 
 class ShmupEnv(gym.Env):
-    """reset() -> (obs, info)；step(action) -> (obs, reward, terminated, truncated, info)。"""
-
-    metadata = {"render_modes": []}
+    metadata = {"render.modes": []}
 
     def __init__(self, max_steps=MAX_STEPS):
-        super(ShmupEnv, self).__init__()
         self.observation_space = gym.spaces.Box(-np.inf, np.inf, shape=(OBS_DIM,), dtype=np.float32)
         self.action_space = gym.spaces.Discrete(N_ACTIONS)
         self.max_steps = max_steps
         self.world = World(0)
         self.t = 0
         self._buf = [0.0] * OBS_DIM
+        self.np_random, _ = seeding.np_random(None)
+
+    def seed(self, seed=None):
+        """SB3 會對第 i 個環境呼叫 seed(seed + i)，之後每局的遊戲 seed 都從這裡抽。"""
+        self.np_random, seed = seeding.np_random(seed)
+        return [seed]
 
     def _obs(self):
         return np.asarray(observe(self.world, self._buf), dtype=np.float32)
 
-    def reset(self, *, seed=None, options=None):
-        super(ShmupEnv, self).reset(seed=seed)
-        # 遊戲本身的 seed：有指定就用指定的（評估用），沒有就從 gymnasium 的亂數抽一個
-        game_seed = seed if seed is not None else int(self.np_random.integers(0, 2 ** 31 - 1))
+    def reset(self):
+        return self.reset_to(int(self.np_random.randint(0, 2 ** 31 - 1)))
+
+    def reset_to(self, game_seed):
+        """用指定的遊戲 seed 開新的一局（評估、錄影時用，才能每次玩到同一局）。"""
         self.world.reset(game_seed)
         self.t = 0
-        return self._obs(), {}
+        return self._obs()
 
     def step(self, action):
         w = self.world
@@ -67,13 +77,14 @@ class ShmupEnv(gym.Env):
                 break
         self.t += 1
         reward += REWARD_HP_LOST * hp_lost + REWARD_PER_SCORE * (w.score - score0)
-        terminated = w.done
-        if terminated:
+        if w.done:
             if w.player.hp <= 0:
                 reward += REWARD_DEATH
             elif w.cleared:
                 reward += REWARD_CLEAR
-        truncated = not terminated and self.t >= self.max_steps
+        truncated = not w.done and self.t >= self.max_steps
         info = {"hp_lost": hp_lost, "score": w.score, "stage": w.stage, "t": self.t,
                 "cleared": w.cleared}
-        return self._obs(), float(reward), terminated, truncated, info
+        if truncated:
+            info["TimeLimit.truncated"] = True
+        return self._obs(), float(reward), bool(w.done or truncated), info

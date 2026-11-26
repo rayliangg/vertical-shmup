@@ -1,4 +1,4 @@
-// 由 scripts/export_web.py 自動產生，請不要手動修改。
+// 由 python -m shmup export 自動產生，請不要手動修改。
 (function (S) {
   S.RULES = {
     "AUTO_BOMB": true,

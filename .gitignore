@@ -5,19 +5,16 @@ __pycache__/
 .pytest_cache/
 build/
 dist/
-.venv/
 
-# Training output (export to web/model/ to publish a model)
-models/*
-!models/.gitkeep
-
-# 錄影輸出（檔案很大，不放進 git）
+# 訓練輸出（模型、報告）和錄影：檔案很大，不放進 git
+models/
 videos/
+web/model/
 
-# Personal notes (not part of the repo)
+# 個人筆記
 README2.md
 
-# Local state
+# 本機狀態
 .highscore
 .DS_Store
 .idea/
