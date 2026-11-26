@@ -5,9 +5,9 @@
 
 > 所有素材、演算法、套件都是 **2022 年 5 月 27 日以前**發布的，版本和日期見最後的「2022 年以前檢查」。
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/rayliangg/vertical-shmup/blob/ppo/train_on_colab.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/rayliangg/vertical-shmup/blob/main/train_on_colab.ipynb)
 
-**在 Colab 上用 GPU 訓練：** https://colab.research.google.com/github/rayliangg/vertical-shmup/blob/ppo/train_on_colab.ipynb
+**在 Colab 上用 GPU 訓練：** https://colab.research.google.com/github/rayliangg/vertical-shmup/blob/main/train_on_colab.ipynb
 
 ![遊戲畫面](docs/screenshots.png)
 
@@ -182,12 +182,12 @@ pip install --no-deps -e .
 
 ## 在 Colab 上用 GPU 訓練
 
-**Colab 網址：** <https://colab.research.google.com/github/rayliangg/vertical-shmup/blob/ppo/train_on_colab.ipynb>
+**Colab 網址：** <https://colab.research.google.com/github/rayliangg/vertical-shmup/blob/main/train_on_colab.ipynb>
 
 1. 打開上面的網址，**執行階段 → 變更執行階段類型 → T4 GPU**。
 2. 第一格是設定（回合數、里程碑、GPU、`USE_DRIVE`），需要的話先改。
 3. 依序執行每一格：存放位置（Google Drive）→ 安裝 → 檢查 GPU → 快速測試 → **訓練** → 結果表 → 錄影 → 下載。
-   - 程式碼會自動從 GitHub 的 `ppo` 分支下載，不用另外上傳。
+   - 程式碼會自動從 GitHub 下載，不用另外上傳。
    - **安裝**那格會另外裝 Python 3.10.4 和 2022 年 5 月以前的套件（Colab 內建的 Python 3.12 裝不了），約 3–5 分鐘。
 4. `USE_DRIVE = True` 時，所有結果存在 `MyDrive/vertical-shmup/`。**斷線後**重新執行「存放位置」、「安裝」和「訓練」那幾格，
    `--resume auto` 會從最後一次存檔接著訓練，回合數也接著算。
