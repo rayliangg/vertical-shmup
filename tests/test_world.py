@@ -67,11 +67,11 @@ def test_game_over():
     assert w.done
 
 
-def test_three_stages_then_all_clear():
-    """第 1、2 關各一隻魔王，最後一關兩隻；兩隻都打倒就 ALL CLEAR。"""
+def test_two_stages_then_all_clear():
+    """第 1 關一隻魔王，第 2 關（最後一關）兩隻；兩隻都打倒就 ALL CLEAR。"""
     w = World(7)
     seen = []
-    for stage in (1, 2, 3):
+    for stage in (1, 2):
         w.stage, w.stage_frame = stage, R.BOSS_TIME - 1
         for _ in range(R.BOSS_WARNING_FRAMES + 200):
             w.step()
@@ -81,5 +81,5 @@ def test_three_stages_then_all_clear():
         for b in bosses:
             w.damage_enemy(b, 10 ** 6)
         w.enemies = [e for e in w.enemies if e.alive]
-    assert seen == [1, 1, 2]
+    assert seen == [1, 2]
     assert w.done and w.cleared

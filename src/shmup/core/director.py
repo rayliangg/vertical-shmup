@@ -1,7 +1,7 @@
 """決定什麼時候出什麼敵人。
 
 一關的流程：雜魚波次（約 60 秒）-> WARNING -> 魔王。
-第 1 關 Warden、第 2 關 Hive Carrier、第 3 關（最後一關）兩隻 Twin Fang。
+第 1 關 Warden，第 2 關（最後一關）兩隻 Twin Fang。
 """
 import math
 

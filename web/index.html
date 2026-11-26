@@ -37,7 +37,7 @@
         <div class="ai-box">
           <div class="ai-title">AI 模型</div>
           <p class="ai-note" id="model-info"></p>
-          <p class="ai-note">AI 現在的 Q 值：<b id="joy-q">--</b></p>
+          <p class="ai-note">AI 對這一步的把握：<b id="joy-q">--</b></p>
           <p class="ai-note">AI 跑了 <b id="stat-runs">0</b> 局，平均 <b id="stat-avg">-</b> 分</p>
         </div>
 
@@ -59,7 +59,7 @@
   <script src="js/rng.js"></script>
   <script src="js/core.js"></script>
   <script src="js/features.js"></script>
-  <script src="model/dqn_model.js" onerror="console.info('還沒有匯出模型')"></script>
+  <script src="model/ppo_model.js" onerror="console.info('還沒有匯出模型')"></script>
   <script src="js/policy.js"></script>
   <script src="js/renderer.js"></script>
   <script src="js/audio.js"></script>

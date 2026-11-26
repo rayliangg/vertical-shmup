@@ -16,7 +16,7 @@ HARNESS = ROOT / "tests" / "js_harness.js"
 FRAMES = 30000                 # 夠長，三種關卡魔王都會出現
 
 
-def python_trace(seed, frames, net=None):
+def python_trace(seed, frames, policy=None):
     w, trace = World(seed), []
     for f in range(frames):
         a = ACTIONS[(f * 7 // 13) % len(ACTIONS)]
@@ -27,10 +27,11 @@ def python_trace(seed, frames, net=None):
             row = {"frame": w.frame, "score": w.score, "stage": w.stage,
                    "bullets": len(w.bullets), "enemies": len(w.enemies), "items": len(w.items),
                    "x": w.player.x, "y": w.player.y, "state": w.rng.state, "obs": obs}
-            if net is not None:
+            if policy is not None:
                 import torch
                 with torch.no_grad():
-                    row["q"] = net(torch.tensor([obs], dtype=torch.float32))[0].tolist()
+                    dist = policy.get_distribution(torch.tensor([obs], dtype=torch.float32))
+                    row["probs"] = dist.distribution.probs[0].tolist()
             trace.append(row)
     return trace
 
@@ -63,16 +64,17 @@ def test_simulation_matches_browser(seed):
 
 
 @pytest.mark.skipif(NODE is None, reason="沒有安裝 node.js")
-def test_exported_network_matches_torch(tmp_path):
-    torch = pytest.importorskip("torch")
-    from shmup.agent.dqn import DuelingQNetwork
+def test_exported_policy_matches_torch(tmp_path):
+    """匯出到網頁版的 PPO 策略網路，在 JS 算出的動作機率要和 PyTorch 一樣。"""
+    pytest.importorskip("stable_baselines3")
+    from stable_baselines3 import PPO
+    from shmup.agent.env import ShmupEnv
     from shmup.agent.export import write_model
-    from shmup.agent.features import N_ACTIONS, OBS_DIM
 
-    torch.manual_seed(0)
-    net = DuelingQNetwork(OBS_DIM, N_ACTIONS, hidden=64).eval()
-    model_js = write_model(net, {"step": 0}, tmp_path / "model.js")
-    py, js = python_trace(3, 600, net), node_trace(3, 600, model_js)
+    model = PPO("MlpPolicy", ShmupEnv(), seed=0, device="cpu",
+                policy_kwargs=dict(net_arch=dict(pi=[64, 64], vf=[64, 64])))
+    model_js = write_model(model.policy, {"step": 0}, tmp_path / "model.js")
+    py, js = python_trace(3, 600, model.policy), node_trace(3, 600, model_js)
     for a, b in zip(py, js):
-        for u, v in zip(a["q"], b["q"]):
-            assert math.isclose(u, v, rel_tol=1e-4, abs_tol=1e-5)
+        for u, v in zip(a["probs"], b["probs"]):
+            assert math.isclose(u, v, rel_tol=1e-4, abs_tol=1e-6)

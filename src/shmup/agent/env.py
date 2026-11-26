@@ -1,15 +1,16 @@
-"""把 World 包成 Gym 風格的環境，另外提供單程序 / 多程序的向量環境。
+"""把 World 包成 gymnasium 環境，給 Stable Baselines3 用。
 
 agent 每做一次決策 = 遊戲前進 FRAME_SKIP 個 frame（每秒 30 次決策）。
+觀測是 features.py 的 284 個數字，動作是 18 種（9 個方向 x 一般 / 慢速）。
 """
-import multiprocessing as mp
-
+import gymnasium as gym
 import numpy as np
 
 from ..core import World
 from .features import ACTIONS, N_ACTIONS, OBS_DIM, observe
 
 FRAME_SKIP = 2
+MAX_STEPS = 15000               # 一局最多 15000 次決策（約 8 分鐘，夠打完 2 關）
 
 # 獎勵設計：活下來、不要被打、撿道具、分數只給一點點。
 REWARD_ALIVE = 0.01
@@ -22,34 +23,34 @@ REWARD_DEATH = -1.0
 REWARD_CLEAR = 5.0              # 打倒最後一關的兩隻魔王（ALL CLEAR）
 
 
-class ShmupEnv:
-    """reset() -> obs；step(action) -> obs, reward, terminated, truncated, info。"""
+class ShmupEnv(gym.Env):
+    """reset() -> (obs, info)；step(action) -> (obs, reward, terminated, truncated, info)。"""
 
-    observation_size = OBS_DIM
-    action_count = N_ACTIONS
+    metadata = {"render_modes": []}
 
-    def __init__(self, seed=0, max_steps=15000):
-        self.world = World(seed)
-        self.seed = seed
-        self.episode = 0
+    def __init__(self, max_steps=MAX_STEPS):
+        super(ShmupEnv, self).__init__()
+        self.observation_space = gym.spaces.Box(-np.inf, np.inf, shape=(OBS_DIM,), dtype=np.float32)
+        self.action_space = gym.spaces.Discrete(N_ACTIONS)
         self.max_steps = max_steps
+        self.world = World(0)
         self.t = 0
         self._buf = [0.0] * OBS_DIM
 
     def _obs(self):
         return np.asarray(observe(self.world, self._buf), dtype=np.float32)
 
-    def reset(self, seed=None):
-        if seed is None:
-            seed = self.seed * 1000003 + self.episode
-        self.episode += 1
-        self.world.reset(seed)
+    def reset(self, *, seed=None, options=None):
+        super(ShmupEnv, self).reset(seed=seed)
+        # 遊戲本身的 seed：有指定就用指定的（評估用），沒有就從 gymnasium 的亂數抽一個
+        game_seed = seed if seed is not None else int(self.np_random.integers(0, 2 ** 31 - 1))
+        self.world.reset(game_seed)
         self.t = 0
-        return self._obs()
+        return self._obs(), {}
 
     def step(self, action):
         w = self.world
-        dx, dy, focus = ACTIONS[action]
+        dx, dy, focus = ACTIONS[int(action)]
         score0 = w.score
         reward = REWARD_ALIVE
         hp_lost = 0
@@ -75,101 +76,4 @@ class ShmupEnv:
         truncated = not terminated and self.t >= self.max_steps
         info = {"hp_lost": hp_lost, "score": w.score, "stage": w.stage, "t": self.t,
                 "cleared": w.cleared}
-        return self._obs(), reward, terminated, truncated, info
-
-
-# ---------------------------------------------------------------------------
-# 向量環境。兩種都會自動 reset：回合結束後回傳的 obs 是下一局的第一個 obs，
-# 真正的最後一個 obs 放在 info["final_obs"]。
-# ---------------------------------------------------------------------------
-def _step_autoreset(env, action):
-    obs, r, term, trunc, info = env.step(action)
-    if term or trunc:
-        info["final_obs"] = obs
-        obs = env.reset()
-    return obs, r, term, trunc, info
-
-
-def _stack(results):
-    obs, rew, term, trunc, infos = zip(*results)
-    return (np.stack(obs), np.asarray(rew, np.float32), np.asarray(term, bool),
-            np.asarray(trunc, bool), list(infos))
-
-
-class SyncVectorEnv:
-    def __init__(self, n, seed=0, max_steps=15000):
-        self.envs = [ShmupEnv(seed * 10007 + i, max_steps) for i in range(n)]
-        self.n = n
-
-    def reset(self):
-        return np.stack([e.reset() for e in self.envs])
-
-    def step(self, actions):
-        return _stack([_step_autoreset(e, int(a)) for e, a in zip(self.envs, actions)])
-
-    def close(self):
-        pass
-
-
-def _worker(conn, seeds, max_steps):
-    envs = [ShmupEnv(s, max_steps) for s in seeds]
-    try:
-        while True:
-            cmd, data = conn.recv()
-            if cmd == "step":
-                conn.send([_step_autoreset(e, int(a)) for e, a in zip(envs, data)])
-            elif cmd == "reset":
-                conn.send([e.reset() for e in envs])
-            else:
-                break
-    except (EOFError, KeyboardInterrupt):
-        pass
-    finally:
-        conn.close()
-
-
-class SubprocVectorEnv:
-    """把 n 個環境分散到 `workers` 個程序（遊戲邏輯是吃 CPU 的 Python）。"""
-
-    def __init__(self, n, workers, seed=0, max_steps=15000):
-        workers = max(1, min(workers, n))
-        seeds = [seed * 10007 + i for i in range(n)]
-        chunks = [seeds[i::workers] for i in range(workers)]
-        ctx = mp.get_context("spawn")
-        self.conns, self.procs, self.sizes = [], [], []
-        for chunk in chunks:
-            parent, child = ctx.Pipe()
-            proc = ctx.Process(target=_worker, args=(child, chunk, max_steps), daemon=True)
-            proc.start()
-            child.close()
-            self.conns.append(parent)
-            self.procs.append(proc)
-            self.sizes.append(len(chunk))
-        self.n = n
-
-    def reset(self):
-        for c in self.conns:
-            c.send(("reset", None))
-        return np.stack([o for c in self.conns for o in c.recv()])
-
-    def step(self, actions):
-        i = 0
-        for c, size in zip(self.conns, self.sizes):
-            c.send(("step", actions[i:i + size]))
-            i += size
-        return _stack([r for c in self.conns for r in c.recv()])
-
-    def close(self):
-        for c in self.conns:
-            try:
-                c.send(("close", None))
-            except (BrokenPipeError, OSError):
-                pass
-        for p in self.procs:
-            p.join(timeout=2)
-
-
-def make_vector_env(n, workers=0, seed=0, max_steps=15000):
-    if workers > 1:
-        return SubprocVectorEnv(n, workers, seed, max_steps)
-    return SyncVectorEnv(n, seed, max_steps)
+        return self._obs(), float(reward), terminated, truncated, info

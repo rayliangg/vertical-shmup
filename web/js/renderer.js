@@ -7,7 +7,7 @@
     ship: "player/ship.png", life: "ui/life.png",
     scout: "enemies/scout.png", weaver: "enemies/weaver.png", diver: "enemies/diver.png",
     gunship: "enemies/gunship.png",
-    boss_warden: "enemies/boss_warden.png", boss_carrier: "enemies/boss_carrier.png",
+    boss_warden: "enemies/boss_warden.png",
     boss_fang: "enemies/boss_fang.png",
     meteor_big: "enemies/meteor_big.png", meteor_medium: "enemies/meteor_medium.png",
     meteor_small: "enemies/meteor_small.png",
@@ -355,7 +355,7 @@
         }
       }
     }
-    if (overlay.q) {
+    if (overlay.probs) {
       var a = F.ACTIONS[overlay.action];
       ctx.strokeStyle = "#50ff78";
       ctx.lineWidth = 3;
@@ -457,7 +457,7 @@
       this.drawJoystick(cx, 470, hud.action);
     }
     if (hud.label) this.text(hud.label, 15, cx, 560, "#ffc878");
-    this.text("DQN AUTOPILOT DEMO", 10, cx, R.HEIGHT - 30, "#6e6e8c");
+    this.text("PPO AUTOPILOT DEMO", 10, cx, R.HEIGHT - 30, "#6e6e8c");
   };
 
   // 3x3 搖桿燈號：亮起來的那格是 AI 選的方向，SLOW 燈表示慢速

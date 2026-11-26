@@ -12,7 +12,7 @@ ENEMY_SPRITES = {
     "scout": "enemies/scout.png", "weaver": "enemies/weaver.png",
     "diver": "enemies/diver.png", "gunship": "enemies/gunship.png",
     "boss_warden": "enemies/boss_warden.png",
-    "boss_carrier": "enemies/boss_carrier.png", "boss_fang": "enemies/boss_fang.png",
+    "boss_fang": "enemies/boss_fang.png",
     "meteor_big": "enemies/meteor_big.png",
     "meteor_medium": "enemies/meteor_medium.png", "meteor_small": "enemies/meteor_small.png",
 }
@@ -211,7 +211,7 @@ class Renderer:
 
     # -- agent 視角（網路看到的東西） --------------------------------------------
     def _draw_agent_view(self, world, overlay):
-        obs, q_values, action = overlay
+        obs, probs, action = overlay
         p = world.player
         layer = pygame.Surface((R.WIDTH, R.HEIGHT), pygame.SRCALPHA)
         x0 = p.x - CELL * GRID / 2.0
@@ -225,11 +225,11 @@ class Renderer:
                 else:
                     pygame.draw.rect(layer, (80, 200, 255, 40), rect, 1)
         self.screen.blit(layer, (0, 0))
-        if q_values is not None:
+        if probs is not None:
             dx, dy, focus = ACTIONS[action]
             end = (int(p.x + dx * 40), int(p.y + dy * 40))
             pygame.draw.line(self.screen, (80, 255, 120), (int(p.x), int(p.y)), end, 3)
-            self.text("Q %.2f%s" % (max(q_values), "  FOCUS" if focus else ""), 12,
+            self.text("%d%%%s" % (round(100 * max(probs)), "  FOCUS" if focus else ""), 12,
                       (int(p.x), int(p.y) + 40), (80, 255, 120))
 
     # -- 遊戲區裡的 HUD：魔王血條、階段名稱、ENEMY 標記、標題帶 -------------------
@@ -315,7 +315,7 @@ class Renderer:
             self.text(hud["label"], 15, (x0 + PANEL_W // 2, 560), (255, 200, 120))
         if hud.get("sublabel"):
             self.text(hud["sublabel"], 11, (x0 + PANEL_W // 2, 584), (180, 180, 200), thin=True)
-        self.text("DQN AUTOPILOT DEMO", 10, (x0 + PANEL_W // 2, R.HEIGHT - 30),
+        self.text("PPO AUTOPILOT DEMO", 10, (x0 + PANEL_W // 2, R.HEIGHT - 30),
                   (110, 110, 140), thin=True)
 
     def _draw_joystick(self, cx, cy, action):

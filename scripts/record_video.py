@@ -1,6 +1,6 @@
 """把訓練中存下來的權重拿來玩一局並錄成影片（不用開視窗）。
 
-    python scripts/record_video.py                              # 錄 10 / 50 / 500 / 2000 回合的權重
+    python scripts/record_video.py                              # 錄 10 / 50 / 500 / 2000 回合的 PPO 模型
     python scripts/record_video.py --episodes 10 2000 --seconds 60
     python scripts/record_video.py --no-grid                    # 不要合成 2x2 對照影片
 
@@ -22,8 +22,7 @@ import pygame  # noqa: E402
 
 from shmup.agent.env import FRAME_SKIP  # noqa: E402
 from shmup.agent.features import ACTIONS  # noqa: E402
-from shmup.agent.policy import DQNPolicy  # noqa: E402
-from shmup.agent.trainer import load_network  # noqa: E402
+from shmup.agent.policy import PPOPolicy  # noqa: E402
 from shmup.core import World  # noqa: E402
 from shmup.core import rules as R  # noqa: E402
 from shmup.paths import MODELS_DIR, ROOT  # noqa: E402
@@ -41,8 +40,7 @@ def open_ffmpeg(path, width, height):
 
 
 def record(checkpoint, episode, out_path, seed, seconds, screen, renderer):
-    net, ckpt = load_network(checkpoint)
-    policy = DQNPolicy(net)
+    policy = PPOPolicy.load(checkpoint)
     world = World(seed)
     renderer.reset()
     width, height = screen.get_size()
@@ -51,7 +49,7 @@ def record(checkpoint, episode, out_path, seed, seconds, screen, renderer):
 
     action, hold = 0, 0
     label = "EPISODE %d" % episode
-    sub = "step %s" % "{:,}".format(ckpt.get("step") or 0)
+    sub = "step %s" % "{:,}".format(int(policy.model.num_timesteps))
     for frame in range(int(seconds * FPS)):
         if not world.done:
             if world.frame % FRAME_SKIP == 0:
@@ -106,7 +104,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--episodes", type=int, nargs="+", default=[10, 50, 500, 2000])
-    ap.add_argument("--checkpoint-dir", default=str(MODELS_DIR / "checkpoints"))
+    ap.add_argument("--checkpoint-dir", default=str(MODELS_DIR / "ppo" / "checkpoints"))
     ap.add_argument("--seed", type=int, default=100000, help="每支影片都用這個 seed")
     ap.add_argument("--seconds", type=float, default=120, help="每支影片最長幾秒")
     ap.add_argument("--out", default=str(ROOT / "videos"))
@@ -125,7 +123,7 @@ def main():
 
     done = []
     for ep in args.episodes:
-        ckpt = os.path.join(args.checkpoint_dir, "dqn_ep%d.pt" % ep)
+        ckpt = os.path.join(args.checkpoint_dir, "ppo_ep%d.zip" % ep)
         if not os.path.exists(ckpt):
             print("  找不到 %s，跳過" % ckpt)
             continue

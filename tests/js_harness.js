@@ -26,7 +26,7 @@ for (var f = 0; f < frames; f++) {
                 bullets: world.bullets.length, enemies: world.enemies.length,
                 items: world.items.length, x: world.player.x, y: world.player.y,
                 state: world.rng.state, obs: obs };
-    if (policy) row.q = Array.prototype.slice.call(policy.qValues(obs));
+    if (policy) row.probs = Array.prototype.slice.call(policy.act(obs).probs);
     trace.push(row);
   }
 }

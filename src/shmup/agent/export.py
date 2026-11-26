@@ -1,7 +1,7 @@
 """把遊戲規則和訓練好的網路匯出給網頁版。
 
     web/js/rules.js          Shmup.RULES（來自 shmup.core.rules）
-    web/model/dqn_model.js   Shmup.MODEL（權重用 base64 存 float32，little-endian）
+    web/model/ppo_model.js   Shmup.MODEL（PPO 策略網路的權重，base64 存 float32，little-endian）
 
 兩個都是一般的 script（不是 JSON），所以直接用 file:// 開 web/index.html 也能載入。
 """
@@ -38,18 +38,38 @@ def _b64(tensor):
     return base64.b64encode(arr.tobytes()).decode("ascii")
 
 
-def model_dict(net, meta=None):
-    layers = {}
-    for name, linears in net.layers().items():
-        layers[name] = [{"in": l.in_features, "out": l.out_features,
-                         "w": _b64(l.weight), "b": _b64(l.bias)} for l in linears]
-    return {"obs_dim": net.obs_dim, "n_actions": net.n_actions, "hidden": net.hidden,
-            "actions": [list(a) for a in ACTIONS], "layers": layers, "meta": meta or {}}
+ACTIVATIONS = {"Tanh": "tanh", "ReLU": "relu"}
 
 
-def write_model(net, meta=None, path=WEB_DIR / "model" / "dqn_model.js"):
+def policy_layers(policy):
+    """把 SB3 的策略網路（mlp_extractor.policy_net + action_net）攤平成一串 Linear 層。
+
+    每一層記下自己後面接的激活函數，網頁版照著算就能得到一樣的 logits。
+    """
+    import torch.nn as nn
+    layers = []
+    for module in list(policy.mlp_extractor.policy_net) + [policy.action_net]:
+        if isinstance(module, nn.Linear):
+            layers.append({"in": module.in_features, "out": module.out_features,
+                           "w": _b64(module.weight), "b": _b64(module.bias), "act": "none"})
+        else:
+            name = ACTIVATIONS.get(type(module).__name__)
+            if name is None:
+                raise ValueError("網頁版不支援這種激活函數：%s" % type(module).__name__)
+            layers[-1]["act"] = name
+    return layers
+
+
+def model_dict(policy, meta=None):
+    layers = policy_layers(policy)
+    return {"algo": "PPO", "obs_dim": layers[0]["in"], "n_actions": layers[-1]["out"],
+            "hidden": layers[0]["out"], "actions": [list(a) for a in ACTIONS],
+            "layers": layers, "meta": meta or {}}
+
+
+def write_model(policy, meta=None, path=WEB_DIR / "model" / "ppo_model.js"):
     path.parent.mkdir(parents=True, exist_ok=True)
-    data = json.dumps(model_dict(net, _jsonable(meta)), separators=(",", ":"))
+    data = json.dumps(model_dict(policy, _jsonable(meta)), separators=(",", ":"))
     path.write_text(HEADER + "(function (S) { S.MODEL = " + data
                     + "; })(this.Shmup = this.Shmup || {});\n")
     return path

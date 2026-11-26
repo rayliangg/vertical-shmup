@@ -10,13 +10,11 @@
     "BOSS_HP_PER_STAGE": 0.3,
     "BOSS_ITEM_DROPS": 8,
     "BOSS_NAMES": {
-      "boss_carrier": "HIVE CARRIER",
       "boss_fang": "TWIN FANG",
       "boss_warden": "WARDEN"
     },
     "BOSS_ORDER": [
       "boss_warden",
-      "boss_carrier",
       "boss_fang"
     ],
     "BOSS_PHASE_TIME": 1800,
@@ -37,13 +35,6 @@
     "DIFFICULTY_IN_STAGE": 0.35,
     "DIFFICULTY_PER_STAGE": 0.25,
     "ENEMIES": {
-      "boss_carrier": {
-        "boss": true,
-        "drop": 1.0,
-        "hp": 420,
-        "radius": 46.0,
-        "score": 12000
-      },
       "boss_fang": {
         "boss": true,
         "drop": 1.0,
@@ -102,7 +93,7 @@
       }
     },
     "ENEMY_CONTACT_SCALE": 0.8,
-    "FINAL_STAGE": 3,
+    "FINAL_STAGE": 2,
     "FIRE_INTERVAL": 6,
     "FPS": 60,
     "GRAZE_SCORE": 5,
@@ -135,14 +126,8 @@
       8,
       38
     ],
-    "MAX_DRONES": 6,
     "PHASE_BONUS": 1000,
     "PHASE_NAMES": {
-      "boss_carrier": [
-        "Drone Bay",
-        "Bloom",
-        "Laser Rain"
-      ],
       "boss_fang": [
         "Crossfire",
         "Pinwheel",

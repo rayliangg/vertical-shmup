@@ -144,7 +144,7 @@ def _meteor(e, w):
 
 # --- 魔王 -------------------------------------------------------------------
 TAU = 2 * math.pi
-ENTRY_Y = {"boss_warden": 130.0, "boss_carrier": 150.0, "boss_fang": 120.0}
+ENTRY_Y = {"boss_warden": 130.0, "boss_fang": 120.0}
 
 
 def _sway(e, center, amp, speed):
@@ -220,52 +220,8 @@ def _warden(e, w):
             e.alt_timer = 10
 
 
-def _carrier(e, w):
-    """第 2 關魔王：放出無人機 -> 五瓣花形彈 -> 雷射雨。"""
-    if not _boss_phases(e, w):
-        return
-    _sway(e, R.WIDTH / 2, 100, 0.008)
-    bs, d = w.bullet_speed, w.difficulty
-    if e.phase_index == 0:
-        if e.fire_timer <= 0:
-            patterns.ring(w.bullets, e.x, e.y, 16, 1.8 * bs, e.amp)
-            e.amp += 0.2
-            e.fire_timer = interval(40, d)
-        if e.alt_timer <= 0:
-            drones = 0
-            for o in w.enemies:
-                if o.kind == "diver" and o.alive:
-                    drones += 1
-            if drones < R.MAX_DRONES:
-                for side in (-1, 1):
-                    drone = Enemy("diver", e.x + side * 50, e.y + 10, 0.0, 3.0)
-                    drone.target_y = e.y + 90
-                    w.enemies.append(drone)
-            e.alt_timer = interval(100, d)
-    elif e.phase_index == 1:
-        if e.fire_timer <= 0:
-            for k in range(5):
-                patterns.single(w.bullets, e.x, e.y, e.amp + k * TAU / 5, 2.3 * bs)
-            spin = 0.11 if (e.phase_timer // 120) % 2 == 0 else -0.11
-            e.amp += spin
-            e.fire_timer = 6
-        if e.alt_timer <= 0:
-            a = patterns.aim_angle(e.x, e.y, w.player)
-            patterns.single(w.bullets, e.x, e.y + 30, a, 3.0 * bs, "big")
-            e.alt_timer = interval(70, d)
-    else:
-        if e.fire_timer <= 0:
-            x = w.rng.uniform(20, R.WIDTH - 20)
-            patterns.single(w.bullets, x, -10.0, HALF_PI, 4.5 * bs, "laser")
-            e.fire_timer = interval(10, d)
-        if e.alt_timer <= 0:
-            a = patterns.aim_angle(e.x, e.y, w.player)
-            patterns.fan(w.bullets, e.x, e.y + 30, a, 3.0 * bs, 7, 1.0)
-            e.alt_timer = interval(50, d)
-
-
 def _fang(e, w):
-    """第 3 關的雙魔王（兩台一起出場）：交叉火力 -> 反向風車彈 -> 追著玩家跑。
+    """第 2 關（最後一關）的雙魔王（兩台一起出場）：交叉火力 -> 反向風車彈 -> 追著玩家跑。
 
     兩台各自有自己的 HP 和階段；其中一台被打倒後，另一台會暴走（射速變快）。
     """
@@ -318,7 +274,6 @@ UPDATERS = {
     "meteor_medium": _meteor,
     "meteor_small": _meteor,
     "boss_warden": _warden,
-    "boss_carrier": _carrier,
     "boss_fang": _fang,
 }
 

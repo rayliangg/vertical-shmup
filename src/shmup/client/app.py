@@ -24,16 +24,16 @@ TITLE, PLAYING, PAUSED, GAME_OVER = "title", "playing", "paused", "game_over"
 
 
 def load_policy(path):
-    """載入 DQN 自動駕駛；載入失敗就印出原因並回傳 None。"""
+    """載入 PPO 自動駕駛；載入失敗就印出原因並回傳 None。"""
     if not path.exists():
         print("找不到模型 %s，請先用 scripts/train_cpu.py 訓練" % path, file=sys.stderr)
         return None
     try:
-        from ..agent.policy import DQNPolicy
+        from ..agent.policy import PPOPolicy
     except ImportError:
-        print("自動駕駛需要 PyTorch：pip install torch", file=sys.stderr)
+        print("自動駕駛需要 Stable Baselines3：pip install stable-baselines3", file=sys.stderr)
         return None
-    return DQNPolicy.load(path)
+    return PPOPolicy.load(path)
 
 
 class App:
@@ -47,7 +47,7 @@ class App:
         self.renderer = Renderer(self.screen, self.assets)
         self.world = World(seed or 0)
         self.seed = seed
-        self.model_path = model_path or (MODELS_DIR / "dqn.pt")
+        self.model_path = model_path or (MODELS_DIR / "ppo" / "best_model.zip")
         self.policy = load_policy(self.model_path) if autopilot else None
         self.autopilot = self.policy is not None
         self.speed = max(1, int(speed))
@@ -138,10 +138,10 @@ class App:
         w = self.world
         if self.autopilot:
             if w.frame % FRAME_SKIP == 0:
-                q = self.policy.q_values(w)
-                self.action = int(q.argmax())
+                probs = self.policy.action_probs(w)
+                self.action = int(probs.argmax())
                 if self.renderer.show_agent_view:
-                    self.overlay = (self.policy.last_obs, q, self.action)
+                    self.overlay = (self.policy.last_obs, probs, self.action)
             dx, dy, focus = ACTIONS[self.action]
             bomb = False
         else:
@@ -176,7 +176,7 @@ class App:
             r.text("VERTICAL", 44, (R.WIDTH // 2, 150), YELLOW, "center")
             r.text("SHMUP", 44, (R.WIDTH // 2, 200), YELLOW, "center")
             r.text("ENTER  play", 18, (R.WIDTH // 2, 300), anchor="center")
-            r.text("A  watch the DQN autopilot", 18, (R.WIDTH // 2, 332), anchor="center")
+            r.text("A  watch the PPO autopilot", 18, (R.WIDTH // 2, 332), anchor="center")
             for i, line in enumerate(CONTROLS):
                 r.text(line, 12, (R.WIDTH // 2, 420 + i * 22), (180, 200, 255), "center", thin=True)
             r.draw_panel(self.world, self._hud())

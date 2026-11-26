@@ -1,5 +1,6 @@
-// 用純 JavaScript 算 Dueling Q 網路（不需要任何機器學習函式庫）。
-// 權重來自 web/model/dqn_model.js，由 scripts/export_web.py 產生。
+// 用純 JavaScript 算 PPO 的策略網路（不需要任何機器學習函式庫）。
+// 權重來自 web/model/ppo_model.js，由 scripts/export_web.py 從 Stable Baselines3 的模型匯出。
+// 網路：284 個觀測 -> Linear+tanh -> Linear+tanh -> Linear -> 18 個動作的 logits。
 (function (S) {
   "use strict";
 
@@ -14,47 +15,40 @@
     this.nOut = spec.out;
     this.w = decode(spec.w);                         // [輸出][輸入]，row-major 排列
     this.b = decode(spec.b);
+    this.act = spec.act;                             // "tanh"、"relu" 或 "none"
   }
-  Linear.prototype.forward = function (x, relu) {
+  Linear.prototype.forward = function (x) {
     var y = new Float32Array(this.nOut), w = this.w, n = this.nIn;
     for (var o = 0; o < this.nOut; o++) {
       var s = this.b[o], base = o * n;
       for (var i = 0; i < n; i++) s += w[base + i] * x[i];
-      y[o] = relu && s < 0 ? 0 : s;
+      if (this.act === "tanh") s = Math.tanh(s);
+      else if (this.act === "relu" && s < 0) s = 0;
+      y[o] = s;
     }
     return y;
   };
 
   function Policy(model) {
-    var L = model.layers;
-    this.torso = L.torso.map(function (l) { return new Linear(l); });
-    this.value = L.value.map(function (l) { return new Linear(l); });
-    this.advantage = L.advantage.map(function (l) { return new Linear(l); });
+    this.layers = model.layers.map(function (l) { return new Linear(l); });
     this.meta = model.meta || {};
     this.obsDim = model.obs_dim;
   }
 
-  function run(layers, x) {
-    for (var i = 0; i < layers.length; i++) x = layers[i].forward(x, i < layers.length - 1);
+  Policy.prototype.logits = function (obs) {
+    var x = obs;
+    for (var i = 0; i < this.layers.length; i++) x = this.layers[i].forward(x);
     return x;
-  }
-
-  Policy.prototype.qValues = function (obs) {
-    var h = this.torso[0].forward(obs, true);        // 主幹的兩層都要過 ReLU
-    h = this.torso[1].forward(h, true);
-    var v = run(this.value, h)[0];
-    var a = run(this.advantage, h), mean = 0, i;
-    for (i = 0; i < a.length; i++) mean += a[i];
-    mean /= a.length;
-    var q = new Float32Array(a.length);
-    for (i = 0; i < a.length; i++) q[i] = v + a[i] - mean;
-    return q;
   };
 
+  // 回傳 { action: 機率最高的動作, probs: 18 個動作的機率 }
   Policy.prototype.act = function (obs) {
-    var q = this.qValues(obs), best = 0;
-    for (var i = 1; i < q.length; i++) if (q[i] > q[best]) best = i;
-    return { action: best, q: q };
+    var z = this.logits(obs), best = 0, i, max = -Infinity, sum = 0;
+    for (i = 0; i < z.length; i++) if (z[i] > max) { max = z[i]; best = i; }
+    var probs = new Float32Array(z.length);
+    for (i = 0; i < z.length; i++) { probs[i] = Math.exp(z[i] - max); sum += probs[i]; }
+    for (i = 0; i < z.length; i++) probs[i] /= sum;
+    return { action: best, probs: probs };
   };
 
   S.Policy = Policy;

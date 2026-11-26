@@ -226,7 +226,7 @@
   }
 
   // ---------------------------------------------------------------- 魔王
-  var ENTRY_Y = { boss_warden: 130.0, boss_carrier: 150.0, boss_fang: 120.0 };
+  var ENTRY_Y = { boss_warden: 130.0, boss_fang: 120.0 };
 
   function sway(e, center, amp, speed) {
     e.phase += speed;
@@ -305,56 +305,6 @@
     }
   }
 
-  function carrier(e, w) {
-    if (!bossPhases(e, w)) return;
-    sway(e, R.WIDTH / 2, 100, 0.008);
-    var bs = w.bulletSpeed(), d = w.difficulty(), a, k;
-    if (e.phaseIndex === 0) {
-      if (e.fireTimer <= 0) {
-        ring(w.bullets, e.x, e.y, 16, 1.8 * bs, e.amp);
-        e.amp += 0.2;
-        e.fireTimer = interval(40, d);
-      }
-      if (e.altTimer <= 0) {
-        var drones = 0;
-        for (k = 0; k < w.enemies.length; k++) {
-          if (w.enemies[k].kind === "diver" && w.enemies[k].alive) drones += 1;
-        }
-        if (drones < R.MAX_DRONES) {
-          for (var side = -1; side <= 1; side += 2) {
-            var drone = new Enemy("diver", e.x + side * 50, e.y + 10, 0, 3.0);
-            drone.targetY = e.y + 90;
-            w.enemies.push(drone);
-          }
-        }
-        e.altTimer = interval(100, d);
-      }
-    } else if (e.phaseIndex === 1) {
-      if (e.fireTimer <= 0) {
-        for (k = 0; k < 5; k++) single(w.bullets, e.x, e.y, e.amp + k * TAU / 5, 2.3 * bs);
-        var spin = Math.floor(e.phaseTimer / 120) % 2 === 0 ? 0.11 : -0.11;
-        e.amp += spin;
-        e.fireTimer = 6;
-      }
-      if (e.altTimer <= 0) {
-        a = aimAngle(e.x, e.y, w.player);
-        single(w.bullets, e.x, e.y + 30, a, 3.0 * bs, "big");
-        e.altTimer = interval(70, d);
-      }
-    } else {
-      if (e.fireTimer <= 0) {
-        var x = w.rng.uniform(20, R.WIDTH - 20);
-        single(w.bullets, x, -10.0, HALF_PI, 4.5 * bs, "laser");
-        e.fireTimer = interval(10, d);
-      }
-      if (e.altTimer <= 0) {
-        a = aimAngle(e.x, e.y, w.player);
-        fan(w.bullets, e.x, e.y + 30, a, 3.0 * bs, 7, 1.0);
-        e.altTimer = interval(50, d);
-      }
-    }
-  }
-
   function fang(e, w) {
     if (!bossPhases(e, w)) return;
     var bs = w.bulletSpeed(), d = w.difficulty(), a, k;
@@ -406,7 +356,7 @@
   var UPDATERS = {
     scout: scout, weaver: weaver, diver: diver, gunship: gunship,
     meteor_big: meteor, meteor_medium: meteor, meteor_small: meteor,
-    boss_warden: warden, boss_carrier: carrier, boss_fang: fang
+    boss_warden: warden, boss_fang: fang
   };
   var SPLITS = { meteor_big: "meteor_medium", meteor_medium: "meteor_small" };
 

@@ -50,10 +50,10 @@
 
   function initPanel() {
     if (policy) {
-      var m = policy.meta || {}, ev = m.eval || {};
-      $("model-info").innerHTML = "模型練了 " +
+      var m = policy.meta || {};
+      $("model-info").innerHTML = "PPO 模型練了 " +
         (m.step != null ? Number(m.step).toLocaleString() + " 步" : "?? 步") +
-        (ev.survival ? "，測試時平均撐 " + Math.round(ev.survival / 30) + " 秒" : "");
+        (m.source ? "（" + m.source + "）" : "");
     } else {
       $("model-info").innerHTML = "還沒有模型，先訓練再跑<br><code>scripts/export_web.py</code>";
       $("btn-autopilot").disabled = true;
@@ -81,8 +81,8 @@
     $("stat-runs").textContent = runs.length;
     $("stat-avg").textContent = runs.length
       ? Math.round(runs.reduce(function (s, r) { return s + r; }, 0) / runs.length) : "-";
-    var o = state.overlay, on = state.autopilot && o && o.q;
-    $("joy-q").textContent = on ? o.q[o.action].toFixed(2) : "--";
+    var o = state.overlay, on = state.autopilot && o && o.probs;
+    $("joy-q").textContent = on ? Math.round(100 * o.probs[o.action]) + "%" : "--";
   }
 
   // ------------------------------------------------------------- 遊戲流程
@@ -110,7 +110,7 @@
         F.observe(world, state.obs);
         var r = policy.act(state.obs);
         state.action = r.action;
-        state.overlay = { obs: state.obs, q: r.q, action: r.action };
+        state.overlay = { obs: state.obs, probs: r.probs, action: r.action };
       }
       var a = F.ACTIONS[state.action];
       dx = a[0]; dy = a[1]; focus = a[2];
@@ -122,7 +122,7 @@
       bomb = state.bomb;
       state.bomb = false;
       if (renderer.showAgentView && world.frame % FRAME_SKIP === 0) {
-        state.overlay = { obs: F.observe(world, state.obs), q: null, action: 0 };
+        state.overlay = { obs: F.observe(world, state.obs), probs: null, action: 0 };
       }
     }
     world.step(dx, dy, focus, bomb);
@@ -149,7 +149,7 @@
     renderer.text("VERTICAL", 44, R.WIDTH / 2, 150, "#ffe65a", "center", "middle");
     renderer.text("SHMUP", 44, R.WIDTH / 2, 200, "#ffe65a", "center", "middle");
     renderer.text("ENTER  play", 18, R.WIDTH / 2, 300, "#fff", "center", "middle");
-    renderer.text(policy ? "A  watch the DQN autopilot" : "(no model exported yet)", 16,
+    renderer.text(policy ? "A  watch the PPO autopilot" : "(no model exported yet)", 16,
                   R.WIDTH / 2, 332, policy ? "#fff" : "#888", "center", "middle");
     var lines = ["ARROWS / WASD  move", "SHIFT  focus (slow)", "X  bomb",
                  "TAB  autopilot   V  agent view", "P  pause   M  mute"];
