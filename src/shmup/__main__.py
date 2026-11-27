@@ -20,7 +20,7 @@ RUN_DIR = MODELS_DIR / "ppo"
 def _add_train_args(p):
     from .rl.train import DEFAULTS
     for key, value in DEFAULTS.items():
-        kind = {"n_steps": int, "batch_size": int, "hidden": int}.get(key, type(value))
+        kind = {"n_steps": int, "batch_size": int}.get(key, type(value))
         p.add_argument("--" + key.replace("_", "-"), type=kind, default=value)
 
 
@@ -44,7 +44,7 @@ def main(argv=None):
 
     p = sub.add_parser("report", help="學習曲線 + 里程碑模型結果表")
     p.add_argument("--run-dir", default=str(RUN_DIR))
-    p.add_argument("--episodes", type=int, default=10)
+    p.add_argument("--episodes", type=int, default=100)
 
     p = sub.add_parser("export", help="匯出遊戲規則和所有里程碑模型給網頁版（訓練時會自動做）")
     p.add_argument("--run-dir", default=str(RUN_DIR))

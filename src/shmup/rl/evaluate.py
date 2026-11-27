@@ -5,7 +5,7 @@
 
 報告內容：
     learning_curve.png   每回合的總獎勵、存活長度、打到第幾關（50 回合移動平均）
-    results.md           第 10 / 50 / 500 / 2000 回合的模型 vs. 亂動 / 不動 兩個對照組
+    results.md           第 100 / 500 / 2000 / 5000 回合的模型 vs. 亂動 / 不動 兩個對照組（含 95% 信賴區間）
 """
 import csv
 import json
@@ -16,7 +16,8 @@ import numpy as np
 from .env import MAX_STEPS, ShmupEnv
 from .features import N_ACTIONS
 
-EVAL_SEED = 100000             # 評估固定用 seed 100000、100001 …，不同模型才能公平比較
+EVAL_SEED = 100000             # 報告、里程碑固定用 seed 100000、100001 …，不同模型才能公平比較
+SELECT_SEED = 200000           # 訓練中挑 best_model 用另一組 seed，報告的局才不會被「挑過」
 SECONDS_PER_STEP = 1.0 / 30    # 一次決策 = 2 frame = 1/30 秒
 
 
@@ -38,6 +39,16 @@ def evaluate(act, episodes=10, seed=EVAL_SEED, max_steps=MAX_STEPS):
             "seconds": float(np.mean(lengths)) * SECONDS_PER_STEP,
             "score": float(np.mean(scores)), "stage": float(np.mean(stages)),
             "clears": clears, "episodes": episodes}
+
+
+def wilson(k, n, z=1.96):
+    """k/n 的 95% 信賴區間（Wilson, 1927）。局數少的時候，通關率的誤差其實很大。"""
+    if n == 0:
+        return 0.0, 0.0
+    p = k / float(n)
+    mid = (p + z * z / (2 * n)) / (1 + z * z / n)
+    half = z * np.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / (1 + z * z / n)
+    return max(0.0, mid - half), min(1.0, mid + half)
 
 
 def model_actor(model):
@@ -112,8 +123,8 @@ def plot_learning_curve(run_dir, out_png):
     return out_png
 
 
-def make_report(run_dir, episodes=10):
-    """畫學習曲線，並用同樣的 10 局評估每個里程碑模型和兩個對照組。"""
+def make_report(run_dir, episodes=100):
+    """畫學習曲線，並用同樣的局數評估每個里程碑模型和兩個對照組。"""
     from stable_baselines3 import PPO
 
     run_dir = Path(run_dir)
@@ -135,11 +146,14 @@ def make_report(run_dir, episodes=10):
     lines = ["# 訓練結果", "",
              "每個模型都用同樣的 %d 局（seed %d～%d）、選機率最高的動作來評估。"
              % (episodes, EVAL_SEED, EVAL_SEED + episodes - 1), "",
-             "| 模型 | 平均存活 | 平均分數 | 平均第幾關 | ALL CLEAR |",
-             "|------|---------:|---------:|-----------:|----------:|"]
+             "| 模型 | 平均存活 | 平均分數 | 平均第幾關 | ALL CLEAR | 通關率 95% 信賴區間 |",
+             "|------|---------:|---------:|-----------:|----------:|--------------------:|"]
     for name, s in rows:
-        lines.append("| %s | %.1f 秒 | %.0f | %.2f | %d / %d |"
-                     % (name, s["seconds"], s["score"], s["stage"], s["clears"], s["episodes"]))
+        lo, hi = wilson(s["clears"], s["episodes"])
+        s["clear_ci"] = [lo, hi]
+        lines.append("| %s | %.1f 秒 | %.0f | %.2f | %d / %d | %.0f%%～%.0f%% |"
+                     % (name, s["seconds"], s["score"], s["stage"], s["clears"], s["episodes"],
+                        100 * lo, 100 * hi))
     if png:
         lines += ["", "![學習曲線](learning_curve.png)"]
     (out / "results.md").write_text("\n".join(lines) + "\n")

@@ -1,0 +1,40 @@
+# conda-forge 的 Python 3.10.4 環境（osx-arm64），每個套件都是 2022-05-27 以前上傳的版本。
+# 由 conda 在「只留 2022-05-27 23:59（台灣時間）以前上傳的套件」的 conda-forge 索引上求解產生。
+# 用法：conda create -n shmup20220527 --file env/conda-osx-arm64.lock
+#       micromamba create -p <路徑> -f env/conda-osx-arm64.lock
+# platform: osx-arm64
+@EXPLICIT
+# bzip2 1.0.8（上傳 2021-04-19 UTC）
+https://conda.anaconda.org/conda-forge/osx-arm64/bzip2-1.0.8-h3422bc3_4.tar.bz2#fc76ace7b94fb1f694988ab1b14dd248
+# ca-certificates 2022.5.18.1（上傳 2022-05-19 UTC）
+https://conda.anaconda.org/conda-forge/osx-arm64/ca-certificates-2022.5.18.1-h4653dfc_0.tar.bz2#00ee870560b45bb8a27809834603eb7c
+# libffi 3.4.2（上傳 2021-11-09 UTC）
+https://conda.anaconda.org/conda-forge/osx-arm64/libffi-3.4.2-h3422bc3_5.tar.bz2#086914b672be056eb70fd4285b6783b6
+# libzlib 1.2.11（上傳 2022-03-26 UTC）
+https://conda.anaconda.org/conda-forge/osx-arm64/libzlib-1.2.11-h90dfc92_1014.tar.bz2#fbe64adc8dbaeeb375d439d15b2bf6b1
+# ncurses 6.3（上傳 2022-04-07 UTC）
+https://conda.anaconda.org/conda-forge/osx-arm64/ncurses-6.3-h07bb92c_1.tar.bz2#db86e5a978380a13f5559f97afdfe99d
+# tzdata 2022a（上傳 2022-03-16 UTC）
+https://conda.anaconda.org/conda-forge/noarch/tzdata-2022a-h191b570_0.tar.bz2#84be5301069417a2221187d2f435e0f7
+# xz 5.2.5（上傳 2020-08-12 UTC）
+https://conda.anaconda.org/conda-forge/osx-arm64/xz-5.2.5-h642e427_1.tar.bz2#9ab2316785cb81c464ab9a99512dae71
+# openssl 3.0.3（上傳 2022-05-03 UTC）
+https://conda.anaconda.org/conda-forge/osx-arm64/openssl-3.0.3-ha287fd2_0.tar.bz2#015a139582e21f409b401ae82c92e34c
+# readline 8.1（上傳 2021-04-19 UTC）
+https://conda.anaconda.org/conda-forge/osx-arm64/readline-8.1-hedafd6a_0.tar.bz2#3ab98d5fd433cd392a1b0781391a9e38
+# tk 8.6.12（上傳 2022-02-16 UTC）
+https://conda.anaconda.org/conda-forge/osx-arm64/tk-8.6.12-he1e0b03_0.tar.bz2#2cb3d18eac154109107f093860bd545f
+# zlib 1.2.11（上傳 2022-03-26 UTC）
+https://conda.anaconda.org/conda-forge/osx-arm64/zlib-1.2.11-h90dfc92_1014.tar.bz2#348a30b1350c9d91a4dbf05f5e46e0bb
+# sqlite 3.38.5（上傳 2022-05-06 UTC）
+https://conda.anaconda.org/conda-forge/osx-arm64/sqlite-3.38.5-h40dfcc0_0.tar.bz2#0581c8d513ba41a8519feca0857bb748
+# python 3.10.4（上傳 2022-03-24 UTC）
+https://conda.anaconda.org/conda-forge/osx-arm64/python-3.10.4-h14b404e_0_cpython.tar.bz2#3208d9332a34dbd9e467d36a3c1d6796
+# python_abi 3.10（上傳 2021-10-06 UTC）
+https://conda.anaconda.org/conda-forge/osx-arm64/python_abi-3.10-2_cp310.tar.bz2#b14f70f943f726b5738da894a979356c
+# wheel 0.37.1（上傳 2021-12-22 UTC）
+https://conda.anaconda.org/conda-forge/noarch/wheel-0.37.1-pyhd8ed1ab_0.tar.bz2#1ca02aaf78d9c70d9a81a3bed5752022
+# setuptools 62.3.2（上傳 2022-05-19 UTC）
+https://conda.anaconda.org/conda-forge/osx-arm64/setuptools-62.3.2-py310hbe9552e_0.tar.bz2#e77c699edc93ca3234098c8fbdb8a12a
+# pip 22.1.1（上傳 2022-05-21 UTC）
+https://conda.anaconda.org/conda-forge/noarch/pip-22.1.1-pyhd8ed1ab_0.tar.bz2#6affaf2f490f479c73d819735f80a104

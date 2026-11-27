@@ -44,7 +44,8 @@ class Director:
 
     @staticmethod
     def _boss(w, kind, x):
-        hp = int(math.floor(R.ENEMIES[kind]["hp"] * (1 + R.BOSS_HP_PER_STAGE * (w.stage - 1))))
+        hp = R.ENEMIES[kind]["hp"] * (1 + R.BOSS_HP_PER_STAGE * (w.stage - 1))
+        hp = max(R.STAT_ROUND, int(math.floor(hp / R.STAT_ROUND + 0.5)) * R.STAT_ROUND)   # 取整到 50
         e = Enemy(kind, x, -60.0, hp=hp)
         e.home_x = x
         e.target_y = ENTRY_Y[kind]

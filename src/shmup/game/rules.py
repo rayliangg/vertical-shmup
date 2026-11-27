@@ -62,19 +62,21 @@ BULLET_MARGIN = 24.0                # 飛出畫面這麼遠就刪掉
 
 # --- 敵人 ----------------------------------------------------------------
 # radius = 碰撞半徑，drop = 被打倒時掉道具的機率
+# HP 已經整體下調 15%（取整數）；魔王 HP 是 50 的倍數
 ENEMIES = {
     "scout": {"hp": 3, "radius": 18.0, "score": 100, "drop": 0.12},
-    "weaver": {"hp": 5, "radius": 20.0, "score": 150, "drop": 0.18},
+    "weaver": {"hp": 4, "radius": 20.0, "score": 150, "drop": 0.18},
     "diver": {"hp": 2, "radius": 18.0, "score": 120, "drop": 0.10},
-    "gunship": {"hp": 22, "radius": 26.0, "score": 500, "drop": 1.0},
-    "meteor_big": {"hp": 6, "radius": 30.0, "score": 50, "drop": 0.08},
+    "gunship": {"hp": 19, "radius": 26.0, "score": 500, "drop": 1.0},
+    "meteor_big": {"hp": 5, "radius": 30.0, "score": 50, "drop": 0.08},
     "meteor_medium": {"hp": 3, "radius": 15.0, "score": 30, "drop": 0.05},
     "meteor_small": {"hp": 1, "radius": 9.0, "score": 10, "drop": 0.0},
     # 魔王（"boss": True 會顯示血條，而且出現時雜魚會暫停）
-    "boss_warden": {"hp": 360, "radius": 50.0, "score": 10000, "drop": 1.0, "boss": True},
-    "boss_fang": {"hp": 260, "radius": 44.0, "score": 9000, "drop": 1.0, "boss": True},
+    "boss_warden": {"hp": 300, "radius": 50.0, "score": 10000, "drop": 1.0, "boss": True},
+    "boss_fang": {"hp": 150, "radius": 44.0, "score": 9000, "drop": 1.0, "boss": True},
 }
-BOSS_HP_PER_STAGE = 0.30            # 第 2 關開始，每多一關魔王 HP +30%
+BOSS_HP_PER_STAGE = 0.0             # 第 2 關開始，每多一關魔王 HP 加多少（0 = 直接用上面表格的 HP）
+STAT_ROUND = 50                     # 魔王 HP 這類大數字一律取整到 50 的倍數（不會出現 792、785 這種數字）
 BOSS_ITEM_DROPS = 8
 
 # --- 魔王關卡 --------------------------------------------------------------
@@ -97,7 +99,11 @@ PHASE_BONUS = 1000                  # 時間內打破一個階段的獎勵分
 # 同時出場的魔王數量：Twin Fang 是兩台一起出現的雙魔王
 BOSS_COUNT = {"boss_fang": 2}
 TWIN_OFFSET = 110.0                 # 雙魔王離畫面中線的距離
-RAGE_SPEEDUP = 2.0                  # 雙魔王其中一台被打倒後，另一台的射速倍率
+RAGE_SPEEDUP = 1.4                  # 雙魔王其中一台被打倒後，另一台的射速倍率
+# 最後一關的雙魔王比較弱一點（兩台一起打，原本太難）
+FANG_FIRE_SCALE = 0.75              # 射速倍率（< 1 = 射比較慢）
+FANG_BULLET_SCALE = 0.85            # 子彈速度倍率
+FANG_RUSH_SHOT_INTERVAL = 14        # Fang Rush 階段自機狙的間隔（frame，原本 8）
 FINAL_STAGE = 2                     # 最後一關
 CLEAR_BONUS = 20000                 # ALL CLEAR 獎勵分
 CLEAR_BONUS_PER_HP = 5000           # 通關時每剩 1 滴血再加的分數
@@ -108,6 +114,8 @@ WAVE_INTERVAL_START = 150
 WAVE_INTERVAL_MIN = 55
 BOSS_TIME = 3600                    # 每關開始後第幾個 frame（60 秒）出現魔王警告
 BOSS_WARNING_FRAMES = 150
+# 整體難度倍率：影響射速、出怪速度、子彈速度（0.85 = 比原本簡單 15%）
+DIFFICULTY_SCALE = 0.85
 DIFFICULTY_PER_STAGE = 0.25
 DIFFICULTY_IN_STAGE = 0.35          # 魔王出現前難度會再往上加這麼多
 # (波次名稱, 權重)，順序固定；Gunship 要過了 GUNSHIP_AFTER 個 frame 才會出現

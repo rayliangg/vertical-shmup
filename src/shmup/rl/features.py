@@ -1,14 +1,14 @@
-"""把 World 轉成 Q 網路要吃的固定長度向量。
+"""把 World 轉成 PPO 策略網路要吃的固定長度向量。
 
-web/js/features.js 是逐行對應的版本（tests/test_web_parity.py 會檢查兩邊一樣）。
+web/js/agent.js 裡的 observe() 是逐行對應的 JavaScript 版本，改這裡時兩邊要一起改。
 
-排列方式（OBS_DIM = 284 個數字）：
+排列方式（OBS_DIM = 290 個數字）：
     自機        7   x, y, HP, 炸彈, 火力, 護盾, 無敵時間
     子彈      120   最近 24 顆敵彈 x (dx, dy, vx, vy, 半徑)
     敵人       64   最近 8 個敵人 x (dx, dy, vx, vy, 半徑, HP, 是否魔王, 存在)
     危險格     81   自機周圍 9x9 的格子：子彈多快會到那一格
     道具        8   最近 2 個道具 x (dx, dy, 種類, 存在)
-    魔王        4   存在, dx, dy, HP
+    魔王       10   最多 2 隻 x (存在, dx, dy, HP, 是否暴走)；第 2 關的 TWIN FANG 有兩隻
 """
 import math
 
@@ -22,6 +22,7 @@ N_ACTIONS = len(ACTIONS)
 N_BULLETS = 24
 N_ENEMIES = 8
 N_ITEMS = 2
+N_BOSSES = 2
 GRID = 9
 CELL = 28.0
 LOOKAHEAD = ((0, 1.0), (6, 0.75), (12, 0.5), (18, 0.25))   # (往後預測幾個 frame, 權重)
@@ -36,7 +37,7 @@ OFF_ENEMIES = OFF_BULLETS + N_BULLETS * 5
 OFF_GRID = OFF_ENEMIES + N_ENEMIES * 8
 OFF_ITEMS = OFF_GRID + GRID * GRID
 OFF_BOSS = OFF_ITEMS + N_ITEMS * 4
-OBS_DIM = OFF_BOSS + 4
+OBS_DIM = OFF_BOSS + N_BOSSES * 5
 
 
 def _nearest(things, px, py, k):
@@ -98,12 +99,14 @@ def observe(world, out=None):
         o[j + 3] = 1.0
         j += 4
 
-    boss = world.boss
-    if boss is not None:
-        o[OFF_BOSS] = 1.0
-        o[OFF_BOSS + 1] = (boss.x - px) / POS_X
-        o[OFF_BOSS + 2] = (boss.y - py) / POS_Y
-        o[OFF_BOSS + 3] = boss.hp / boss.max_hp
+    j = OFF_BOSS                                 # 依出場順序（左邊那台先），不是依距離
+    for e in [e for e in world.enemies if e.is_boss and e.alive][:N_BOSSES]:
+        o[j] = 1.0
+        o[j + 1] = (e.x - px) / POS_X
+        o[j + 2] = (e.y - py) / POS_Y
+        o[j + 3] = e.hp / e.max_hp
+        o[j + 4] = 1.0 if e.rage else 0.0
+        j += 5
     return o
 
 

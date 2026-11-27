@@ -7,7 +7,7 @@
     "BOSS_COUNT": {
       "boss_fang": 2
     },
-    "BOSS_HP_PER_STAGE": 0.3,
+    "BOSS_HP_PER_STAGE": 0.0,
     "BOSS_ITEM_DROPS": 8,
     "BOSS_NAMES": {
       "boss_fang": "TWIN FANG",
@@ -34,18 +34,19 @@
     "DIAGONAL": 0.7071067811865476,
     "DIFFICULTY_IN_STAGE": 0.35,
     "DIFFICULTY_PER_STAGE": 0.25,
+    "DIFFICULTY_SCALE": 0.85,
     "ENEMIES": {
       "boss_fang": {
         "boss": true,
         "drop": 1.0,
-        "hp": 260,
+        "hp": 150,
         "radius": 44.0,
         "score": 9000
       },
       "boss_warden": {
         "boss": true,
         "drop": 1.0,
-        "hp": 360,
+        "hp": 300,
         "radius": 50.0,
         "score": 10000
       },
@@ -57,13 +58,13 @@
       },
       "gunship": {
         "drop": 1.0,
-        "hp": 22,
+        "hp": 19,
         "radius": 26.0,
         "score": 500
       },
       "meteor_big": {
         "drop": 0.08,
-        "hp": 6,
+        "hp": 5,
         "radius": 30.0,
         "score": 50
       },
@@ -87,12 +88,15 @@
       },
       "weaver": {
         "drop": 0.18,
-        "hp": 5,
+        "hp": 4,
         "radius": 20.0,
         "score": 150
       }
     },
     "ENEMY_CONTACT_SCALE": 0.8,
+    "FANG_BULLET_SCALE": 0.85,
+    "FANG_FIRE_SCALE": 0.75,
+    "FANG_RUSH_SHOT_INTERVAL": 14,
     "FINAL_STAGE": 2,
     "FIRE_INTERVAL": 6,
     "FPS": 60,
@@ -154,11 +158,12 @@
     "PLAYER_SPEED": 4.5,
     "PLAYER_START_BOMBS": 2,
     "PLAYER_START_Y": 640.0,
-    "RAGE_SPEEDUP": 2.0,
+    "RAGE_SPEEDUP": 1.4,
     "SHIELD_INVULN_FRAMES": 60,
     "SHOT_DAMAGE": 1,
     "SHOT_RADIUS": 6.0,
     "SHOT_SPEED": 13.0,
+    "STAT_ROUND": 50,
     "TWIN_OFFSET": 110.0,
     "WAVES": [
       [

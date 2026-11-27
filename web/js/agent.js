@@ -1,6 +1,6 @@
 // 網頁版的 AI：觀測向量（對照 src/shmup/rl/features.py）+ PPO 策略網路推論。
 
-// Q 網路的觀測向量：完全對照 src/shmup/rl/features.py。
+// PPO 的觀測向量：完全對照 src/shmup/rl/features.py。
 (function (S) {
   "use strict";
   var R = S.RULES;
@@ -11,7 +11,7 @@
     DIRS.forEach(function (d) { ACTIONS.push([d[0], d[1], focus]); });
   });
 
-  var N_BULLETS = 24, N_ENEMIES = 8, N_ITEMS = 2, GRID = 9, CELL = 28.0;
+  var N_BULLETS = 24, N_ENEMIES = 8, N_ITEMS = 2, N_BOSSES = 2, GRID = 9, CELL = 28.0;
   var LOOKAHEAD = [[0, 1.0], [6, 0.75], [12, 0.5], [18, 0.25]];
   var POS_X = 240.0, POS_Y = 360.0, VEL = 6.0;
   var OFF_BULLETS = 7;
@@ -19,7 +19,7 @@
   var OFF_GRID = OFF_ENEMIES + N_ENEMIES * 8;
   var OFF_ITEMS = OFF_GRID + GRID * GRID;
   var OFF_BOSS = OFF_ITEMS + N_ITEMS * 4;
-  var OBS_DIM = OFF_BOSS + 4;
+  var OBS_DIM = OFF_BOSS + N_BOSSES * 5;
 
   function nearest(things, px, py, k) {
     var scored = [];
@@ -117,12 +117,17 @@
       o[j + 3] = 1.0;
     }
 
-    var boss = world.boss();
-    if (boss !== null) {
-      o[OFF_BOSS] = 1.0;
-      o[OFF_BOSS + 1] = (boss.x - px) / POS_X;
-      o[OFF_BOSS + 2] = (boss.y - py) / POS_Y;
-      o[OFF_BOSS + 3] = boss.hp / boss.maxHp;
+    j = OFF_BOSS;                                // 依出場順序（左邊那台先），不是依距離
+    for (i = 0, list = 0; i < world.enemies.length && list < N_BOSSES; i++) {
+      var m = world.enemies[i];
+      if (!m.isBoss || !m.alive) continue;
+      o[j] = 1.0;
+      o[j + 1] = (m.x - px) / POS_X;
+      o[j + 2] = (m.y - py) / POS_Y;
+      o[j + 3] = m.hp / m.maxHp;
+      o[j + 4] = m.rage ? 1.0 : 0.0;
+      j += 5;
+      list++;
     }
     return o;
   }
@@ -134,8 +139,8 @@
 })(this.Shmup = this.Shmup || {});
 
 // 用純 JavaScript 算 PPO 的策略網路（不需要任何機器學習函式庫）。
-// 權重來自 web/model/ppo_model.js，由 python -m shmup export 從 Stable Baselines3 的模型匯出。
-// 網路：284 個觀測 -> Linear+tanh -> Linear+tanh -> Linear -> 18 個動作的 logits。
+// 權重來自 web/model/ppo_ep*.js，由 python -m shmup export 從 Stable Baselines3 的模型匯出。
+// 網路：290 個觀測 -> 3 層 Linear+tanh -> Linear -> 18 個動作的 logits（層數照模型檔案）。
 (function (S) {
   "use strict";
 

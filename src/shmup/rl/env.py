@@ -1,7 +1,7 @@
 """把 World 包成 gym 環境（gym 0.21 的介面），給 Stable Baselines3 1.5 用。
 
 agent 每做一次決策 = 遊戲前進 FRAME_SKIP 個 frame（每秒 30 次決策）。
-觀測是 features.py 的 284 個數字，動作是 18 種（9 個方向 x 一般 / 慢速）。
+觀測是 features.py 的 290 個數字，動作是 18 種（9 個方向 x 一般 / 慢速）。
 
 gym 0.21 的介面：
     reset()        -> obs
@@ -13,18 +13,22 @@ import numpy as np
 from gym.utils import seeding
 
 from ..game import World
+from ..game import rules as R
 from .features import ACTIONS, N_ACTIONS, OBS_DIM, observe
 
 FRAME_SKIP = 2
+BOSS_KINDS = frozenset(k for k, spec in R.ENEMIES.items() if spec.get("boss"))
 MAX_STEPS = 15000               # 一局最多 15000 次決策（約 8 分鐘，夠打完 2 關）
 
-# 獎勵設計：活下來、不要被打、撿道具、分數只給一點點。
+# 獎勵設計：活下來、不要被打、撿道具、打魔王；分數只給一點點。
 REWARD_ALIVE = 0.01
 REWARD_HP_LOST = -1.0
 REWARD_BOMB_SPENT = -0.5        # 自動炸彈救了一命，但用掉了資源
 REWARD_SHIELD_LOST = -0.3
 REWARD_PICKUP = 0.05
 REWARD_PER_SCORE = 0.0002       # 100 分 -> +0.02
+REWARD_BOSS_HIT = 0.003         # 打中魔王一下（WARDEN 打完約 +1.1、TWIN FANG 兩台約 +1.2）
+REWARD_BOSS_KILL = 1.0         # 打倒一隻魔王（逃走不算）
 REWARD_DEATH = -1.0
 REWARD_CLEAR = 5.0              # 打倒最後一關的兩隻魔王（ALL CLEAR）
 
@@ -73,6 +77,10 @@ class ShmupEnv(gym.Env):
                     reward += REWARD_SHIELD_LOST
                 elif name == "pickup":
                     reward += REWARD_PICKUP
+                elif name == "hit" and value in BOSS_KINDS:
+                    reward += REWARD_BOSS_HIT
+                elif name == "explode" and value in BOSS_KINDS:
+                    reward += REWARD_BOSS_KILL
             if w.done:
                 break
         self.t += 1

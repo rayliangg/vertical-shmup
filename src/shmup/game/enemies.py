@@ -254,7 +254,7 @@ def _fang(e, w):
     """
     if not _boss_phases(e, w):
         return
-    bs, d = w.bullet_speed, w.difficulty
+    bs, d = w.bullet_speed * R.FANG_BULLET_SCALE, w.difficulty * R.FANG_FIRE_SCALE
     if e.rage:
         d = d * R.RAGE_SPEEDUP
     side = -1.0 if e.home_x < R.WIDTH / 2 else 1.0
@@ -289,7 +289,7 @@ def _fang(e, w):
         if e.alt_timer <= 0:
             a = aim_angle(e.x, e.y, w.player)
             single(w.bullets, e.x, e.y + 30, a, 4.4 * bs)
-            e.alt_timer = 8
+            e.alt_timer = R.FANG_RUSH_SHOT_INTERVAL
 
 
 UPDATERS = {

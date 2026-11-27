@@ -9,13 +9,16 @@ PPO（Schulman et al., 2017）+ GAE（Schulman et al., 2015），都是 2022 年
 一次訓練的輸出（預設 models/ppo/）：
     config.json / versions.json        這次用的超參數、套件版本（之後才知道怎麼重現）
     part1.monitor.csv …                每一回合的總獎勵、長度、關卡（畫學習曲線用）
-    best_model.zip                     評估時存活最久的模型
+    best_model.zip                     評估（另一組 seed）時通關最多的模型
+    train_stats.csv                    每次更新的 approx_kl、clip_fraction、entropy、學習率…（看訓練穩不穩）
     last_model.zip / last_progress.json  最新的模型和目前回合數（續訓用）
     checkpoints/ppo_ep{N}.zip          第 N 回合時的模型（報告、網頁選單用）
     milestones.json / best.json        每個里程碑和最佳模型的紀錄（時間、步數、評估結果）
     web/                               自動匯出的網頁版模型（同時也寫進專案的 web/model/）
 """
+import csv
 import datetime
+import math
 import json
 import os
 import platform
@@ -31,7 +34,7 @@ from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecMoni
 
 from ..paths import MODELS_DIR, WEB_DIR
 from .env import ShmupEnv
-from .evaluate import evaluate, format_eval, model_actor
+from .evaluate import SELECT_SEED, evaluate, format_eval, model_actor
 from .policy import export_run
 
 # 所有超參數；命令列的 --xxx 會蓋掉這裡的值。None 表示「依 CPU / GPU 設定決定」。
@@ -43,18 +46,27 @@ DEFAULTS = {
     "total_steps": 300000000,          # 安全上限，通常會先因為 max_episodes 停下來
     "n_steps": None,                   # 每個環境每次收集幾步再更新（None = 總共 8192 / 16384 步平均分給每局）
     "batch_size": None,                # CPU 256 / GPU 1024
-    "hidden": None,                    # 策略網路、價值網路每層幾個單元（CPU 256 / GPU 512）
+    "pi_layers": "256,256",            # 策略網路每層的單元數
+    "vf_layers": "512,512",            # 價值網路每層的單元數（價值比較難估，給大一點）
     "n_epochs": 10,
-    "lr": 2.5e-4,
     "gamma": 0.99,
     "gae_lambda": 0.95,
-    "clip_range": 0.2,
-    "ent_coef": 0.01,
     "vf_coef": 0.5,
     "max_grad_norm": 0.5,
+    # 下面三個在 anneal_start 步之前用 *_start，到 anneal_end 步時降到 *_end（中間平滑地降）。
+    # 前期學得快，後期每次更新變小，策略才不會一直來回晃。
+    "lr": 2.5e-4,
+    "lr_end": 2.5e-5,
+    "clip_range": 0.2,
+    "clip_end": 0.1,
+    "ent_coef": 0.01,
+    "ent_end": 0.002,
+    "anneal_start": 5000000,
+    "anneal_end": 20000000,
+    "target_kl": 0.02,                 # 一次更新內 KL 超過 1.5 倍就提早停（0 = 不限制）
     "eval_every": 1000000,             # 每幾步評估一次並更新 best_model（後期一局很長，評估要花時間）
-    "eval_episodes": 5,
-    "milestone_eval": 5,
+    "eval_episodes": 20,               # 選 best_model 用的局數（seed 200000 起，跟報告的局不重疊）
+    "milestone_eval": 10,              # 里程碑模型的評估局數（seed 100000 起，跟報告同一組）
     "seed": 1,
     "threads": 2,                      # torch 用幾個 CPU 執行緒
     "out_dir": str(MODELS_DIR / "ppo"),
@@ -63,8 +75,8 @@ DEFAULTS = {
 # rollout = 每次更新前，所有環境加起來收集的步數。用「總數」來設定，
 # 同時玩的局數變多時，每局收集的步數就自動變少，學習速度（每回合學到的東西）才不會變慢。
 PROFILES = {
-    "cpu": {"rollout": 8192, "batch_size": 256, "hidden": 256},
-    "cuda": {"rollout": 16384, "batch_size": 1024, "hidden": 512},
+    "cpu": {"rollout": 8192, "batch_size": 256},
+    "cuda": {"rollout": 16384, "batch_size": 1024},
 }
 
 
@@ -80,9 +92,8 @@ def resolve(cfg):
         print("=" * 70, flush=True)
         cfg["device"] = "cpu"
     profile = PROFILES["cuda" if cfg["device"].startswith("cuda") else "cpu"]
-    for key in ("batch_size", "hidden"):
-        if cfg.get(key) is None:
-            cfg[key] = profile[key]
+    if cfg.get("batch_size") is None:
+        cfg["batch_size"] = profile["batch_size"]
     if cfg.get("n_steps") is None:
         n_steps = profile["rollout"] // cfg["n_envs"]
         cfg["n_steps"] = max(128, n_steps // 64 * 64)
@@ -90,6 +101,46 @@ def resolve(cfg):
     if cfg["resume"] == "auto":
         cfg["resume"] = str(out / "last_model.zip") if (out / "last_model.zip").exists() else ""
     return cfg
+
+
+def layers(text):
+    return [int(x) for x in str(text).split(",") if x.strip()]
+
+
+def schedule(cfg, step):
+    """依目前步數算出 (學習率, clip_range, ent_coef)。學習率用等比的方式降，另外兩個用線性。"""
+    span = max(1, cfg["anneal_end"] - cfg["anneal_start"])
+    f = min(1.0, max(0.0, (step - cfg["anneal_start"]) / float(span)))
+    lr = cfg["lr"] * (cfg["lr_end"] / cfg["lr"]) ** f
+    clip = cfg["clip_range"] + (cfg["clip_end"] - cfg["clip_range"]) * f
+    ent = cfg["ent_coef"] + (cfg["ent_end"] - cfg["ent_coef"]) * f
+    return lr, clip, ent
+
+
+def apply_hyperparams(model, cfg):
+    """把 cfg 的超參數寫進模型。續訓時 PPO.load 會用存檔裡的舊值，所以載入後要再設一次。"""
+    model.n_epochs = cfg["n_epochs"]
+    model.batch_size = cfg["batch_size"]
+    model.gamma = model.rollout_buffer.gamma = cfg["gamma"]
+    model.gae_lambda = model.rollout_buffer.gae_lambda = cfg["gae_lambda"]
+    model.vf_coef = cfg["vf_coef"]
+    model.max_grad_norm = cfg["max_grad_norm"]
+    model.target_kl = cfg["target_kl"] or None
+    set_schedule(model, cfg)
+
+
+def set_schedule(model, cfg):
+    lr, clip, ent = schedule(cfg, model.num_timesteps)
+    model.learning_rate = lr
+    model.lr_schedule = lambda _: lr
+    model.clip_range = lambda _: clip
+    model.ent_coef = ent
+    return lr, clip, ent
+
+
+def score_key(stats):
+    """選 best_model 的標準：先比通關數，再比平均關卡，最後比存活時間。"""
+    return [stats["clears"], round(stats["stage"], 3), round(stats["survival"], 1)]
 
 
 def versions():
@@ -105,13 +156,14 @@ def versions():
 # 訓練過程的 callback：數回合、印 log、存里程碑、評估、提早停止
 # ---------------------------------------------------------------------------
 class ProgressCallback(BaseCallback):
-    def __init__(self, cfg, start_episodes=0, best=-1.0):
+    def __init__(self, cfg, start_episodes=0, best=None):
         super(ProgressCallback, self).__init__()
         self.cfg = cfg
         self.out = Path(cfg["out_dir"])
         self.episodes = start_episodes
-        self.best = best
+        self.best = best if isinstance(best, list) else None    # 舊版存的是一個數字，不能比
         self.recent = deque(maxlen=50)
+        self.clears500 = deque(maxlen=500)
         wanted = sorted(int(x) for x in str(cfg["save_episodes"]).split(",") if x.strip())
         self.milestones = [m for m in wanted if m > start_episodes]
         self.start_time = time.time()
@@ -129,6 +181,7 @@ class ProgressCallback(BaseCallback):
             if ep is not None:
                 self.episodes += 1
                 self.recent.append((ep["r"], ep["l"], info.get("stage", 1), info.get("cleared", False)))
+                self.clears500.append(1 if info.get("cleared", False) else 0)
                 while self.milestones and self.episodes >= self.milestones[0]:
                     self._save_milestone(self.milestones.pop(0))
         if self.num_timesteps >= self.next_eval:
@@ -140,6 +193,9 @@ class ProgressCallback(BaseCallback):
         return True
 
     def _on_rollout_end(self):
+        # 這裡在每次更新（model.train）之前呼叫。SB3 的 logger 這時還留著「上一次更新」的數值。
+        train_vals = {k[6:]: v for k, v in self.model.logger.name_to_value.items() if k.startswith("train/")}
+        lr, clip, ent = set_schedule(self.model, self.cfg)
         if not self.recent:
             return
         r = np.array([x[0] for x in self.recent])
@@ -148,10 +204,32 @@ class ProgressCallback(BaseCallback):
         clears = sum(1 for x in self.recent if x[3])
         elapsed = time.time() - self.start_time
         fps = (self.num_timesteps - self.start_steps) / max(elapsed, 1e-9)
-        print("step %10d  ep %5d | return %7.2f  length %6.0f  stage %.2f  clear %2d/%d | "
-              "%5.0f steps/s | %6.0fs"
+        clear500 = sum(self.clears500) / float(len(self.clears500))
+        print("step %10d  ep %5d | return %7.2f  length %6.0f  stage %.2f  clear %2d/%d  "
+              "clear500 %4.1f%% | kl %.4f  lr %.1e | %5.0f steps/s | %6.0fs"
               % (self.num_timesteps, self.episodes, r.mean(), length.mean(), stage.mean(),
-                 clears, len(self.recent), fps, elapsed), flush=True)
+                 clears, len(self.recent), 100 * clear500, train_vals.get("approx_kl", float("nan")),
+                 lr, fps, elapsed), flush=True)
+        self._write_stats(train_vals, lr, clip, ent, r.mean(), clears / float(len(self.recent)), clear500)
+
+    STATS_FIELDS = ["step", "episode", "lr", "clip_range", "ent_coef", "approx_kl", "clip_fraction",
+                    "entropy_loss", "policy_gradient_loss", "value_loss", "explained_variance",
+                    "return50", "clear50", "clear500"]
+
+    def _write_stats(self, vals, lr, clip, ent, ret, clear50, clear500):
+        path = self.out / "train_stats.csv"
+        new = not path.exists()
+        row = {"step": int(self.num_timesteps), "episode": self.episodes, "lr": lr, "clip_range": clip,
+               "ent_coef": ent, "return50": ret, "clear50": clear50, "clear500": clear500}
+        for key in self.STATS_FIELDS:
+            if key not in row:
+                v = vals.get(key, "")
+                row[key] = "" if v == "" or (isinstance(v, float) and math.isnan(v)) else float(v)
+        with open(str(path), "a", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=self.STATS_FIELDS)
+            if new:
+                w.writeheader()
+            w.writerow(row)
 
     def _record(self, stats, model_file):
         return {"episode": self.episodes, "step": int(self.num_timesteps),
@@ -183,10 +261,11 @@ class ProgressCallback(BaseCallback):
         self._export_web()
 
     def _evaluate(self):
-        stats = evaluate(model_actor(self.model), self.cfg["eval_episodes"])
+        stats = evaluate(model_actor(self.model), self.cfg["eval_episodes"], seed=SELECT_SEED)
         print("  eval：%s" % format_eval(stats), flush=True)
-        if stats["survival"] > self.best:
-            self.best = stats["survival"]
+        key = score_key(stats)
+        if self.best is None or key > self.best:
+            self.best = key
             self.model.save(str(self.out / "best_model.zip"))
             (self.out / "best.json").write_text(json.dumps(
                 self._record(stats, "best_model.zip"), ensure_ascii=False, indent=2))
@@ -221,25 +300,28 @@ def train(cfg):
                       info_keywords=("stage", "cleared"))
     venv.seed(cfg["seed"] * 1000 + part)
 
-    start_episodes, best = 0, -1.0
+    start_episodes, best = 0, None
     if cfg["resume"]:
         model = PPO.load(cfg["resume"], env=venv, device=cfg["device"])
+        if model.n_steps != cfg["n_steps"]:
+            print("注意：存檔的 n_steps 是 %d，續訓時沿用（--n-steps 只對新的訓練有效）" % model.n_steps)
+            cfg["n_steps"] = model.n_steps
         progress = Path(cfg["resume"]).with_name("last_progress.json")
         if progress.exists():
             saved = json.loads(progress.read_text())
-            start_episodes, best = saved.get("episodes", 0), saved.get("best", -1.0)
+            start_episodes, best = saved.get("episodes", 0), saved.get("best")
         print("從 %s 接著訓練（第 %d 步、第 %d 回合）"
               % (cfg["resume"], model.num_timesteps, start_episodes))
     else:
-        h = cfg["hidden"]
         model = PPO(
             "MlpPolicy", venv,
             n_steps=cfg["n_steps"], batch_size=cfg["batch_size"], n_epochs=cfg["n_epochs"],
             learning_rate=cfg["lr"], gamma=cfg["gamma"], gae_lambda=cfg["gae_lambda"],
             clip_range=cfg["clip_range"], ent_coef=cfg["ent_coef"], vf_coef=cfg["vf_coef"],
-            max_grad_norm=cfg["max_grad_norm"],
-            policy_kwargs=dict(net_arch=[dict(pi=[h, h], vf=[h, h])]),
+            max_grad_norm=cfg["max_grad_norm"], target_kl=cfg["target_kl"] or None,
+            policy_kwargs=dict(net_arch=[dict(pi=layers(cfg["pi_layers"]), vf=layers(cfg["vf_layers"]))]),
             seed=cfg["seed"], device=cfg["device"], verbose=0)
+    apply_hyperparams(model, cfg)          # 續訓時用這次命令列的超參數，不是存檔裡的
 
     (out / "config.json").write_text(json.dumps(cfg, ensure_ascii=False, indent=2))
     (out / "versions.json").write_text(json.dumps(versions(), indent=2))

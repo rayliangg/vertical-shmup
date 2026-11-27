@@ -351,7 +351,7 @@
 
   function fang(e, w) {
     if (!bossPhases(e, w)) return;
-    var bs = w.bulletSpeed(), d = w.difficulty(), a, k;
+    var bs = w.bulletSpeed() * R.FANG_BULLET_SCALE, d = w.difficulty() * R.FANG_FIRE_SCALE, a, k;
     if (e.rage) d = d * R.RAGE_SPEEDUP;
     var side = e.homeX < R.WIDTH / 2 ? -1.0 : 1.0;
     if (e.phaseIndex < 2) {
@@ -392,7 +392,7 @@
       if (e.altTimer <= 0) {
         a = aimAngle(e.x, e.y, w.player);
         single(w.bullets, e.x, e.y + 30, a, 4.4 * bs);
-        e.altTimer = 8;
+        e.altTimer = R.FANG_RUSH_SHOT_INTERVAL;
       }
     }
   }
@@ -414,7 +414,8 @@
   }
 
   function spawnBoss(w, kind, x) {
-    var hp = Math.floor(R.ENEMIES[kind].hp * (1 + R.BOSS_HP_PER_STAGE * (w.stage - 1)));
+    var hp = R.ENEMIES[kind].hp * (1 + R.BOSS_HP_PER_STAGE * (w.stage - 1));
+    hp = Math.max(R.STAT_ROUND, Math.floor(hp / R.STAT_ROUND + 0.5) * R.STAT_ROUND);   // 取整到 50
     var e = new Enemy(kind, x, -60.0, 0, 0, hp);
     e.homeX = x;
     e.targetY = ENTRY_Y[kind];
@@ -548,7 +549,8 @@
 
   World.prototype.difficulty = function () {
     var progress = Math.min(this.stageFrame / R.BOSS_TIME, 1.0);
-    return 1.0 + R.DIFFICULTY_PER_STAGE * (this.stage - 1) + R.DIFFICULTY_IN_STAGE * progress;
+    return R.DIFFICULTY_SCALE * (1.0 + R.DIFFICULTY_PER_STAGE * (this.stage - 1) +
+                                 R.DIFFICULTY_IN_STAGE * progress);
   };
   World.prototype.bulletSpeed = function () { return 0.85 + 0.15 * this.difficulty(); };
   World.prototype.boss = function () {

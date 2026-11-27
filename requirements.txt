@@ -1,12 +1,13 @@
 # 這個專案的完整套件清單（全部是 2022 年 5 月 27 日以前發布的版本）
-# Python 3.10.4（2022-03-24）
+# Python 3.10.4（2022-03-24）、pip 22.1.1、setuptools 62.3.2、wheel 0.37.1 和底層函式庫（openssl、sqlite…）
+# 都在 env/conda-*.lock 裡，用 micromamba 0.23.3（2022-05-20）建環境：
+#   micromamba create -p <路徑> -f env/conda-osx-arm64.lock      （Linux 用 conda-linux-64.lock）
 #
-# 安裝順序很重要：gym 0.21 要用 2022 年的 setuptools 建置，所以要先裝下面三個，再用 --no-build-isolation：
-#   pip install pip==22.1.1 setuptools==62.3.2 wheel==0.37.1
-#   pip install --no-build-isolation gym==0.21.0
+# 安裝順序很重要：gym 0.21 要用 2022 年的 setuptools 建置，所以要用 --no-build-isolation 先單獨裝，
+# 加上 -c requirements.txt，它的相依套件（numpy、cloudpickle）才不會先被裝成最新版：
+#   pip install --no-build-isolation -c requirements.txt gym==0.21.0
 #   pip install -r requirements.txt
-# 用 NVIDIA GPU（例如 Colab）時，torch 改從 CUDA 11.3 的來源安裝：
-#   pip install -r requirements.txt "torch==1.11.0+cu113" --extra-index-url https://download.pytorch.org/whl/cu113
+# GPU（例如 Colab 的 T4）也用同一個 torch==1.11.0：PyPI 上的 Linux 版內建 CUDA 10.2。
 
 # 強化學習
 stable-baselines3==1.5.0      # 2022-03-25

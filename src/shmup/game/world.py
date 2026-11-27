@@ -57,7 +57,8 @@ class World:
     @property
     def difficulty(self):
         progress = min(self.stage_frame / R.BOSS_TIME, 1.0)
-        return 1.0 + R.DIFFICULTY_PER_STAGE * (self.stage - 1) + R.DIFFICULTY_IN_STAGE * progress
+        return R.DIFFICULTY_SCALE * (1.0 + R.DIFFICULTY_PER_STAGE * (self.stage - 1)
+                                     + R.DIFFICULTY_IN_STAGE * progress)
 
     @property
     def bullet_speed(self):

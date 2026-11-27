@@ -32,15 +32,18 @@
 ## 快速開始
 
 這個專案固定使用 2022 年 5 月以前的套件版本，需要 **Python 3.10**（新版 Python 裝不了 2022 年 5 月以前的套件）。
-用 conda 開一個獨立的環境，不會影響電腦上其他的 Python：
+用 micromamba 0.23.3（2022-05-20）照 `env/` 裡的 lock file 開一個獨立的環境。lock file 把 Python 和它用到的底層函式庫
+（openssl、sqlite、zlib…）每一個都固定成 2022-05-27 以前的版本，不會影響電腦上其他的 Python：
 
 ```bash
-conda create -y -n shmup20220527 -c conda-forge python=3.10.4 pip=22.1.1 setuptools=62.3.2 wheel=0.37.1
-conda activate shmup20220527
-pip install --no-build-isolation gym==0.21.0
-pip install -r requirements.txt
-pip install --no-deps -e .
+curl -sSL https://micro.mamba.pm/api/micromamba/osx-arm64/0.23.3 | tar -xj bin/micromamba   # Linux 把 osx-arm64 換成 linux-64
+./bin/micromamba create -y -p ./py310 -f env/conda-osx-arm64.lock                            # Linux 用 env/conda-linux-64.lock
+./py310/bin/python -m pip install --no-build-isolation -c requirements.txt gym==0.21.0
+./py310/bin/python -m pip install -r requirements.txt
+./py310/bin/python -m pip install --no-deps -e .
 ```
+
+之後的 `python` 都是指 `./py310/bin/python`（也可以 `export PATH="$PWD/py310/bin:$PATH"`）。
 
 之後所有功能都是 `python -m shmup <指令>`：
 
@@ -100,7 +103,10 @@ pip install --no-deps -e .
 
 - 每隻魔王 HP 剩 66%、33% 時換階段，畫面上的子彈會被清掉，並顯示階段名稱
 - 每個階段有 30 秒時限：時間內打破 +1000 分；時間到直接換下一階段；最後階段時間到魔王會逃走
-- 第 2 關的兩隻 TWIN FANG 各自有血條和階段；**先打倒一隻，另一隻會暴走（RAGE），射速變兩倍**
+- 第 2 關的兩隻 TWIN FANG 各自有血條和階段；**先打倒一隻，另一隻會暴走（RAGE），射速變 1.4 倍**
+- 魔王 HP：WARDEN 300、TWIN FANG 每台 150（魔王 HP 一律是 50 的倍數）
+- 整體難度已下調 15%（`DIFFICULTY_SCALE = 0.85`：射速、出怪速度、子彈速度），雜魚 HP 也下調約 15%
+- TWIN FANG 另外再調弱：射速 x0.75、子彈速度 x0.85，Fang Rush 的自機狙間隔從 8 改成 14 frame
 - 兩隻都打倒就 **ALL CLEAR**，加 20,000 分 + 每剩 1 滴血 5,000 分，遊戲結束
 
 ### 畫面風格
@@ -121,9 +127,9 @@ pip install --no-deps -e .
      ▼
 [2] gym 環境  src/shmup/rl/env.py、features.py
      │   每 2 個 frame 做一次決策（每秒 30 次）
-     │   觀測：284 個數字（自機、最近 24 顆子彈、最近 8 個敵人、9x9 危險格、道具、魔王）
+     │   觀測：290 個數字（自機、最近 24 顆子彈、最近 8 個敵人、9x9 危險格、道具、2 隻魔王）
      │   動作：18 種（9 個方向 x 一般 / 慢速）
-     │   獎勵：活著 +0.01、掉血 -1、吃道具 +0.05、ALL CLEAR +5 …
+     │   獎勵：活著 +0.01、掉血 -1、吃道具 +0.05、打魔王、ALL CLEAR +5 …
      ▼
 [3] 訓練  python -m shmup train（Stable Baselines3 PPO；Colab 用 GPU）
      │   ┌─▶ SubprocVecEnv：同時玩好幾局，每局一個程序，用滿所有 CPU 核心
@@ -169,11 +175,24 @@ pip install --no-deps -e .
 | PPO（剪裁目標） | Schulman et al., 2017 | 主要演算法 |
 | GAE（λ = 0.95） | Schulman et al., 2015 | 算 advantage |
 | Actor-Critic | Mnih et al., 2016（A3C / A2C） | 策略網路 + 價值網路 |
-| Adam、熵獎勵、梯度裁剪 | 2014 年 / PPO 論文 | 優化與探索 |
+| Adam | Kingma & Ba, 2014 | 優化 |
+| 熵獎勵（entropy bonus） | Williams & Peng, 1991；Mnih et al., 2016 | 鼓勵探索 |
+| 梯度裁剪（gradient clipping） | Pascanu et al., 2012 | 避免一次更新太大 |
+| 正交初始化（orthogonal init） | Saxe et al., 2013 | 網路初始權重（SB3 預設） |
+| frame skip（每 2 個 frame 決定一次） | Mnih et al., 2013 | 減少決策次數 |
+| 學習率、clip 逐步降低 | Schulman et al., 2017（PPO 論文的 Atari 設定） | 後期穩定 |
+| KL 提早停止（target_kl） | Achiam, 2018（OpenAI Spinning Up） | 一次更新不要改太多 |
+| Wilson 信賴區間 | Wilson, 1927 | 報告的通關率誤差 |
 
-- **網路**：策略網路和價值網路各兩層（tanh）。CPU 設定每層 256 單元（282,387 個參數），GPU 設定每層 512。
+- **網路**：策略網路 2 層 256 單元、價值網路 2 層 512 單元（tanh），共 557,075 個參數（網頁版只用策略網路，144,914 個）。
+  之前試過兩邊都 3 層 512（1,358,355 個參數），通關率沒有變好，訓練卻慢了一倍多。
+- **後期穩定**：前 500 萬步用學習率 2.5e-4、clip 0.2、熵係數 0.01，到 2000 萬步時平滑地降到 2.5e-5、0.1、0.002；
+  另外一次更新的 KL 超過 0.03（target_kl 0.02 的 1.5 倍）就提早停。每次更新的 approx_kl、clip_fraction、entropy、
+  最近 500 回合的通關率都記在 `models/ppo/train_stats.csv`，看得出訓練是真的在晃，還是只是評估的局數太少。
+- **選最佳模型**：每 100 萬步用另外 20 局（seed 200000 起）評估，先比通關數、再比關卡、最後比存活時間。
+  報告用的是另一組局（seed 100000 起），所以報告的數字不會因為「挑過」而偏高。
 - **獎勵**：每步存活 +0.01、掉 1 滴血 -1、被迫自動放炸彈 -0.5、護盾破掉 -0.3、
-  撿道具 +0.05、分數 x 0.0002、死亡 -1、ALL CLEAR +5。
+  撿道具 +0.05、分數 x 0.0002、打中魔王一下 +0.003、打倒一隻魔王 +1、死亡 -1、ALL CLEAR +5。
 
 詳細的原理和設計理由寫在 `README2.md`（個人筆記，沒有放進 git）。
 
@@ -192,7 +211,7 @@ pip install --no-deps -e .
    `--resume auto` 會從最後一次存檔接著訓練，回合數也接著算。
 
 **GPU 對這個專案的幫助有限**：瓶頸是 Python 的遊戲模擬（在 CPU 上跑），GPU 只加速「更新網路」那一步。
-Colab 免費版只有 2 個 CPU 核心，所以通常比多核心的電腦慢；GPU 設定用比較大的網路（512）和 batch（1024）來彌補。
+Colab 免費版只有 2 個 CPU 核心，所以通常比多核心的電腦慢；GPU 設定用比較大的 batch（1024）和每批資料（16384 步）來彌補。
 
 ---
 
@@ -218,6 +237,7 @@ Mac 上建議用 `caffeinate -i python -m shmup train`，訓練期間電腦不�
 | `models/ppo/best.json` | 目前最佳模型的同樣紀錄 |
 | `models/ppo/web/`、`web/model/` | 網頁版模型（`ppo_ep100.js`…、`ppo_best.js`）和選單清單 `manifest.js` |
 | `models/ppo/part*.monitor.csv` | 每一回合的總獎勵、長度、關卡（學習曲線用） |
+| `models/ppo/train_stats.csv` | 每次更新的 approx_kl、clip_fraction、entropy、學習率、最近 50 / 500 回合的通關率 |
 
 ---
 
@@ -300,7 +320,7 @@ vertical-shmup/
 │   │   ├── director.py           出怪和魔王的時間安排
 │   │   └── world.py              每個 frame 的更新和碰撞
 │   ├── rl/                       【強化學習】
-│   │   ├── features.py           遊戲 → 284 維觀測、18 種動作
+│   │   ├── features.py           遊戲 → 290 維觀測、18 種動作
 │   │   ├── env.py                gym 環境（獎勵設計）
 │   │   ├── train.py              PPO 訓練、回合計數、里程碑存檔、續訓
 │   │   ├── evaluate.py           評估、對照組、學習曲線、結果表
@@ -327,10 +347,11 @@ vertical-shmup/
 
 | 套件 | 版本 | 發布日期 | 用途 |
 |------|------|---------|------|
+| micromamba | 0.23.3 | 2022-05-20 | 建 Python 環境 |
 | Python | 3.10.4 | 2022-03-24 | 全部 |
 | stable-baselines3 | 1.5.0 | 2022-03-25 | PPO |
 | gym | 0.21.0 | 2021-10-06 | 環境介面 |
-| torch | 1.11.0（Colab 用 +cu113） | 2022-03-10 | 神經網路、GPU |
+| torch | 1.11.0（Linux 版內建 CUDA 10.2） | 2022-03-10 | 神經網路、GPU |
 | numpy | 1.22.4 | 2022-05-20 | 觀測向量 |
 | pandas / matplotlib | 1.4.2 / 3.5.2 | 2022-04 / 2022-05 | SB3 的相依、學習曲線 |
 | pygame | 2.1.2 | 2021-12-27 | 自己玩（pygame 版） |
@@ -339,22 +360,30 @@ vertical-shmup/
 其他間接相依（cloudpickle、pillow、packaging…）也全部固定在 `requirements.txt`，每一行都標了發布日期。
 訓練時會把實際用到的版本寫進 `models/ppo/versions.json`。
 
-**不屬於專案本身的工具**：Colab 用 micromamba 下載 Python 3.10.4——
-這些只是安裝或執行用的工具，專案的程式碼不依賴它們的版本。
+**Python 底層的函式庫**（openssl、sqlite、zlib、tzdata、ncurses…）也固定了：`env/conda-osx-arm64.lock`、
+`env/conda-linux-64.lock` 列出每一個 conda-forge 套件的網址和 md5，旁邊標了上傳日期，最新的是 2022-05-21。
+這兩個檔案是先把 conda-forge 的套件索引過濾成「2022-05-27 23:59（台灣時間）以前上傳的」，再讓 conda 求解產生的。
+（zlib 1.2.12 是 2022-05-27 UTC 晚上上傳的，台灣時間已經是 28 號，所以用 1.2.11。）
+
+**gym 的安裝**加了 `-c requirements.txt`：不加的話，pip 會先把 numpy、cloudpickle 裝成最新版，下一步才降回來。
+
+**唯一的例外：Colab 主機本身。** Colab 的作業系統、內建的 Python 3.12、GPU driver、`wget` 都是 Colab 提供的，
+沒辦法換成 2022 年的版本。訓練只在另外裝的 Python 3.10.4 環境裡跑，不會用到 Colab 內建的 Python。
 
 ### 素材（逐檔比對）
 
 `assets/` 裡每一個圖片、音效、字型、音樂檔，都和原始下載的壓縮檔**逐位元組相同**（用 SHA-1 比對），
-檔案本身內嵌的日期也都在 2013 年：
+檔案本身內嵌的日期也都在 2022 年以前（2007～2017）：
 
 | 種類 | 原始檔案日期 | 檔案內嵌的資訊 |
 |------|-------------|---------------|
 | 圖片 32 個（戰機、敵人、魔王、子彈、道具、背景、UI） | 2014-01-29 | PNG 沒有內嵌時間 |
-| 字型 2 個（kenvector_future） | 2013-11-15 | 字型檔記錄的建立 / 修改日期：2013-11-15 |
+| 字型 2 個（kenvector_future） | 2013-11-15 | 字型檔記錄的建立 / 修改日期：2013-11-15；授權欄位寫 CC BY-SA 3.0 |
 | 音效 11 個（.ogg） | 2014-01-29、2014-03-17、2017-10-28 | 編碼器 libVorbis 2007、2012 版 |
 | 背景音樂（Orbital Colossus） | 2013-10-27 上傳 | MP3 標籤年份 2013 |
 
-Space Shooter Redux 是 CC0（公眾領域），不需要附授權檔；它的來源和授權寫在下方「素材來源」。
+Space Shooter Redux 的圖片和音效是 CC0（公眾領域），不需要附授權檔；字型檔本身標的授權是 CC BY-SA 3.0，
+所以字型照 CC BY-SA 3.0 標示作者（見下方「素材來源」）。
 
 ### 演算法
 
@@ -364,6 +393,12 @@ Space Shooter Redux 是 CC0（公眾領域），不需要附授權檔；它的�
 | GAE（Generalized Advantage Estimation） | 2015 |
 | Actor-Critic（A3C / A2C） | 2016 |
 | Adam | 2014 |
+| 正交初始化 | 2013 |
+| frame skip | 2013 |
+| 梯度裁剪 | 2012 |
+| 熵獎勵 | 1991 |
+| KL 提早停止（target_kl） | 2018 |
+| Wilson 信賴區間 | 1927 |
 | xorshift 亂數 | 2003 |
 
 ### 網頁版
@@ -378,9 +413,10 @@ HTML5 Canvas、ES5 / ES2015 語法、CSS Grid（2017），沒有任何外部 Jav
 
 | 素材 | 作者 | 發布年份 | 授權 | 用在哪裡 |
 |------|------|---------|------|---------|
-| [Space Shooter Redux](https://kenney.nl/assets/space-shooter-redux) | Kenney | 2014 | CC0 1.0 | 戰機、敵人、魔王、雷射、道具、護盾、背景、UI、字型、部分音效 |
+| [Space Shooter Redux](https://kenney.nl/assets/space-shooter-redux) | Kenney | 2014 | CC0 1.0 | 戰機、敵人、魔王、雷射、道具、護盾、背景、UI、部分音效 |
+| kenvector_future 字型（同一個素材包） | Kenney（用 FontStruct 製作） | 2013 | [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/)（字型檔內的授權欄位） | 介面文字 |
 | [Digital Audio](https://kenney.nl/assets/digital-audio) | Kenney | 2012 | CC0 1.0 | 撿道具、爆炸、炸彈、受傷音效 |
 | [Music Jingles](https://kenney.nl/assets/music-jingles) | Kenney | 2014 | CC0 1.0 | 過關音效 |
 | [Orbital Colossus](https://opengameart.org/content/space-boss-battle-theme) | Matthew Pablo（[matthewpablo.com](http://www.matthewpablo.com)） | 2013 | [CC-BY 3.0](https://creativecommons.org/licenses/by/3.0/) | 背景音樂 |
 
-CC0 不需要標示作者；CC-BY 3.0 需要標示作者，也就是上表這一行。`docs/` 裡的圖片是這個遊戲自己的截圖。
+CC0 不需要標示作者；CC-BY 3.0 和 CC BY-SA 3.0 需要標示作者，也就是上表的字型和音樂兩行。`docs/` 裡的圖片是這個遊戲自己的截圖。
