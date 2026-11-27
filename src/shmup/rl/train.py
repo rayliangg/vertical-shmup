@@ -35,7 +35,8 @@ from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecMoni
 from ..paths import MODELS_DIR, WEB_DIR
 from .env import ShmupEnv
 from .evaluate import SELECT_SEED, evaluate, format_eval, model_actor
-from .policy import export_run
+from .features import OBS_DIM
+from .policy import compatible, export_run, model_obs_dim
 
 # 所有超參數；命令列的 --xxx 會蓋掉這裡的值。None 表示「依 CPU / GPU 設定決定」。
 DEFAULTS = {
@@ -100,7 +101,27 @@ def resolve(cfg):
     out = Path(cfg["out_dir"])
     if cfg["resume"] == "auto":
         cfg["resume"] = str(out / "last_model.zip") if (out / "last_model.zip").exists() else ""
+        if cfg["resume"] and not compatible(cfg["resume"]):
+            cfg["resume"] = ""
+            set_aside(out, model_obs_dim(out / "last_model.zip"))
+    elif cfg["resume"] and not compatible(cfg["resume"]):
+        raise SystemExit("不能接著訓練 %s：它的觀測長度是 %d，現在的遊戲是 %d（遊戲規則或觀測改過了）。"
+                         "請改用新的 --out-dir，或用 --resume auto 讓它自動把舊的存檔移開。"
+                         % (cfg["resume"], model_obs_dim(cfg["resume"]), OBS_DIM))
     return cfg
+
+
+def set_aside(out, old_dim):
+    """--resume auto 遇到舊規則的存檔：整個資料夾改名留著（不刪），然後從頭開始新的訓練。"""
+    base = out.with_name("%s_old_obs%d" % (out.name, old_dim))
+    dest, k = base, 2
+    while dest.exists():
+        dest, k = base.with_name("%s_%d" % (base.name, k)), k + 1
+    out.rename(dest)
+    print("=" * 70)
+    print("%s 裡是舊規則的模型（觀測長度 %d，現在是 %d），不能接著練。" % (out, old_dim, OBS_DIM))
+    print("已經把它改名成 %s（沒有刪除），從第 0 回合重新訓練。" % dest)
+    print("=" * 70, flush=True)
 
 
 def layers(text):

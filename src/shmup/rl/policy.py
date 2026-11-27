@@ -84,6 +84,17 @@ def policy_layers(policy):
     return layers
 
 
+def model_obs_dim(path):
+    """不載入整個模型，只讀存檔裡記的觀測長度（舊版規則訓練的模型會跟現在的 OBS_DIM 不一樣）。"""
+    from stable_baselines3.common.save_util import load_from_zip_file
+    data, _, _ = load_from_zip_file(str(path), device="cpu", load_data=True)
+    return int(data["observation_space"].shape[0])
+
+
+def compatible(path):
+    return model_obs_dim(path) == OBS_DIM
+
+
 def write_model(policy, model_id, meta=None, path=None):
     """匯出一個模型給網頁版：註冊到 Shmup.MODELS_DATA[model_id]（網頁選單選到時才載入）。"""
     layers = policy_layers(policy)
@@ -129,6 +140,9 @@ def export_run(run_dir, web_model_dirs):
         models.append(run_dir / "best_model.zip")
     entries = []
     for zip_path in models:
+        if not compatible(zip_path):
+            print("  跳過 %s（觀測長度 %d，現在是 %d：舊規則的模型）" % (zip_path, model_obs_dim(zip_path), OBS_DIM))
+            continue
         is_best = zip_path.name == "best_model.zip"
         model_id = "best" if is_best else zip_path.stem.replace("ppo_", "")
         rec = records.get(model_id, {})

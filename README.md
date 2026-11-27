@@ -209,6 +209,8 @@ curl -sSL https://micro.mamba.pm/api/micromamba/osx-arm64/0.23.3 | tar -xj bin/m
    - **安裝**那格會另外裝 Python 3.10.4 和 2022 年 5 月以前的套件（Colab 內建的 Python 3.12 裝不了），約 3–5 分鐘。
 4. `USE_DRIVE = True` 時，所有結果存在 `MyDrive/vertical-shmup/`。**斷線後**重新執行「存放位置」、「安裝」和「訓練」那幾格，
    `--resume auto` 會從最後一次存檔接著訓練，回合數也接著算。
+   如果存檔是舊規則訓練的（觀測長度不一樣），`--resume auto` 會把舊的 `ppo/` 改名成 `ppo_old_obs284` 之類留著（不刪除），然後從頭訓練；
+   報告和網頁匯出也會跳過這種舊模型。
 
 **GPU 對這個專案的幫助有限**：瓶頸是 Python 的遊戲模擬（在 CPU 上跑），GPU 只加速「更新網路」那一步。
 Colab 免費版只有 2 個 CPU 核心，所以通常比多核心的電腦慢；GPU 設定用比較大的 batch（1024）和每批資料（16384 步）來彌補。

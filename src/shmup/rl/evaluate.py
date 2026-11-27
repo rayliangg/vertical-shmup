@@ -14,7 +14,7 @@ from pathlib import Path
 import numpy as np
 
 from .env import MAX_STEPS, ShmupEnv
-from .features import N_ACTIONS
+from .features import N_ACTIONS, OBS_DIM
 
 EVAL_SEED = 100000             # 報告、里程碑固定用 seed 100000、100001 …，不同模型才能公平比較
 SELECT_SEED = 200000           # 訓練中挑 best_model 用另一組 seed，報告的局才不會被「挑過」
@@ -136,7 +136,12 @@ def make_report(run_dir, episodes=100):
             ("亂動（對照組）", evaluate(random_actor(), episodes))]
     ckpts = sorted((run_dir / "checkpoints").glob("ppo_ep*.zip"),
                    key=lambda p: int(p.stem.replace("ppo_ep", "")))
+    from .policy import compatible, model_obs_dim
     for path in ckpts + ([run_dir / "best_model.zip"] if (run_dir / "best_model.zip").exists() else []):
+        if not compatible(path):
+            print("  跳過 %s（觀測長度 %d，現在的遊戲是 %d：舊規則訓練的模型）"
+                  % (path, model_obs_dim(path), OBS_DIM))
+            continue
         model = PPO.load(str(path), device="cpu")
         name = ("第 %s 回合" % path.stem.replace("ppo_ep", "")) if path.stem.startswith("ppo_ep") \
             else "best_model"
