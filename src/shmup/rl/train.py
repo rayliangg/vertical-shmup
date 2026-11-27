@@ -81,6 +81,30 @@ PROFILES = {
 }
 
 
+def gpu_supported():
+    """這版 torch（2022 年 3 月的 1.11）有沒有這張 GPU 能跑的程式碼。
+
+    CUDA 的規則：sm_XY 編譯的程式可以在 X 相同、小版本 >= Y 的 GPU 上跑（T4 是 7.5，可以跑 sm_70）；
+    compute_XY（PTX）可以在 >= XY 的 GPU 上即時編譯。L4（8.9）、A100（8.0）這些比較新的 GPU 都不在
+    PyPI 版 torch 1.11.0 的清單裡，硬跑會出現「no kernel image is available」。
+    """
+    try:
+        major, minor = torch.cuda.get_device_capability(0)
+        archs = torch.cuda.get_arch_list()
+    except Exception:
+        return True
+    for arch in archs:
+        kind, _, num = arch.partition("_")
+        if not num.isdigit():
+            continue
+        a_major, a_minor = int(num) // 10, int(num) % 10
+        if kind == "sm" and a_major == major and a_minor <= minor:
+            return True
+        if kind == "compute" and (a_major, a_minor) <= (major, minor):
+            return True
+    return False
+
+
 def resolve(cfg):
     """把 auto / None 換成實際的值。"""
     cfg = dict(cfg)
@@ -92,12 +116,24 @@ def resolve(cfg):
         print("Colab：執行階段 -> 變更執行階段類型 -> 選 T4 GPU，然後重新執行安裝那一格。")
         print("=" * 70, flush=True)
         cfg["device"] = "cpu"
+    if cfg["device"].startswith("cuda") and not gpu_supported():
+        major, minor = torch.cuda.get_device_capability(0)
+        print("=" * 70)
+        print("警告：%s（sm_%d%d）太新了，torch %s 只支援 %s，改用 CPU 和 CPU 設定。"
+              % (torch.cuda.get_device_name(0), major, minor, torch.__version__,
+                 " ".join(torch.cuda.get_arch_list())))
+        print("這個專案的瓶頸是 CPU 上的遊戲模擬，用 CPU 訓練只會慢一點。")
+        print("想用 GPU：Colab 的「變更執行階段類型」選 T4（L4、A100 都太新）。")
+        print("=" * 70, flush=True)
+        cfg["device"] = "cpu"
     profile = PROFILES["cuda" if cfg["device"].startswith("cuda") else "cpu"]
     if cfg.get("batch_size") is None:
         cfg["batch_size"] = profile["batch_size"]
     if cfg.get("n_steps") is None:
-        n_steps = profile["rollout"] // cfg["n_envs"]
-        cfg["n_steps"] = max(128, n_steps // 64 * 64)
+        # 每局收集的步數，取「n_steps x 局數剛好是 batch_size 的倍數」的最大值，每個 mini-batch 才會一樣大
+        step = cfg["batch_size"] // math.gcd(cfg["batch_size"], cfg["n_envs"])
+        step = step * max(1, -(-64 // step))            # 至少是 64 的倍數左右，太小的話 GAE 不準
+        cfg["n_steps"] = max(step, profile["rollout"] // cfg["n_envs"] // step * step)
     out = Path(cfg["out_dir"])
     if cfg["resume"] == "auto":
         cfg["resume"] = str(out / "last_model.zip") if (out / "last_model.zip").exists() else ""

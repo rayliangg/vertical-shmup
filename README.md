@@ -203,6 +203,8 @@ curl -sSL https://micro.mamba.pm/api/micromamba/osx-arm64/0.23.3 | tar -xj bin/m
 **Colab 網址：** <https://colab.research.google.com/github/rayliangg/vertical-shmup/blob/main/train_on_colab.ipynb>
 
 1. 打開上面的網址，**執行階段 → 變更執行階段類型 → T4 GPU**。
+   **要選 T4**：L4、A100 比較新（sm_89、sm_80），2022 年 3 月的 PyTorch 1.11.0 沒有它們能跑的程式碼（只到 sm_70，T4 是 7.5 可以跑）。
+   選到它們時，訓練會印出警告並自動改用 CPU 設定；這個專案的瓶頸本來就在 CPU，只會慢一點。
 2. 第一格是設定（回合數、里程碑、GPU、`USE_DRIVE`），需要的話先改。
 3. 依序執行每一格：存放位置（Google Drive）→ 安裝 → 檢查 GPU → 快速測試 → **訓練** → 結果表 → 下載網頁版模型。
    - 程式碼會自動從 GitHub 下載，不用另外上傳。
